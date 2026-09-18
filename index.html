@@ -9,26 +9,106 @@
 
 <body>
 
+    <!-- MENÚ -->
     <div id="menu">
         <div class="menu-box">
-            <h1>🏎️ LAKY RACING</h1>
-            <p>Corre. Derrapa. Gana.</p>
 
-            <button id="startButton">JUGAR</button>
+            <h1>🏎️ LAKY RACING</h1>
+            <p class="subtitle">Corre. Derrapa. Gana.</p>
+
+            <input
+                id="playerName"
+                type="text"
+                maxlength="16"
+                placeholder="TU NOMBRE"
+                value="Jugador"
+            >
+
+            <button id="createRoomButton">
+                CREAR SALA
+            </button>
+
+            <div id="roomInfo" class="hidden">
+
+                <p class="room-title">
+                    CÓDIGO DE SALA
+                </p>
+
+                <div id="roomCode">
+                    ------
+                </div>
+
+                <button id="copyRoomButton">
+                    COPIAR CÓDIGO
+                </button>
+
+                <p id="waitingText">
+                    Esperando jugadores...
+                </p>
+
+            </div>
+
+            <div class="separator">
+                <span>O</span>
+            </div>
+
+            <div class="join-box">
+
+                <input
+                    id="roomInput"
+                    type="text"
+                    maxlength="20"
+                    placeholder="CÓDIGO DE SALA"
+                >
+
+                <button id="joinRoomButton">
+                    UNIRSE
+                </button>
+
+            </div>
+
+            <p id="connectionStatus">
+                Desconectado
+            </p>
 
             <div class="controls">
-                <span>W / ↑</span> Acelerar
-                <span>S / ↓</span> Frenar / reversa
-                <span>A / ←</span> Girar izquierda
-                <span>D / →</span> Girar derecha
-                <span>ESPACIO</span> Derrape
+
+                <div>
+                    <b>W / ↑</b>
+                    Acelerar
+                </div>
+
+                <div>
+                    <b>S / ↓</b>
+                    Frenar / reversa
+                </div>
+
+                <div>
+                    <b>A / ←</b>
+                    Girar izquierda
+                </div>
+
+                <div>
+                    <b>D / →</b>
+                    Girar derecha
+                </div>
+
+                <div>
+                    <b>ESPACIO</b>
+                    Derrape
+                </div>
+
             </div>
+
         </div>
     </div>
 
+
+    <!-- JUEGO -->
     <div id="gameUI" class="hidden">
 
         <div class="topbar">
+
             <div>
                 <small>VUELTA</small>
                 <strong id="lap">1 / 3</strong>
@@ -48,27 +128,60 @@
                 <small>VELOCIDAD</small>
                 <strong id="speed">0 km/h</strong>
             </div>
+
         </div>
+
 
         <canvas id="gameCanvas"></canvas>
 
+
         <div id="countdown"></div>
+
 
         <div id="minimap">
             <canvas id="mapCanvas"></canvas>
         </div>
 
+
+        <div id="playerList">
+
+            <h3>JUGADORES</h3>
+
+            <div id="playersContainer"></div>
+
+        </div>
+
+
         <div id="finish" class="hidden">
+
             <div class="finish-box">
+
                 <h1>🏁 ¡META!</h1>
-                <p id="finishTime">Tiempo: 00:00.000</p>
-                <p id="finishPosition">Posición: 1.º</p>
-                <button id="restartButton">VOLVER A JUGAR</button>
+
+                <p id="finishTime">
+                    Tiempo: 00:00.000
+                </p>
+
+                <p id="finishPosition">
+                    Posición: 1.º
+                </p>
+
+                <button id="restartButton">
+                    VOLVER A JUGAR
+                </button>
+
             </div>
+
         </div>
 
     </div>
 
+
+    <!-- PEERJS -->
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+
+    <!-- JUEGO -->
     <script src="game.js"></script>
+
 </body>
 </html>
