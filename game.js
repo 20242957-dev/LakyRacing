@@ -1,37 +1,210 @@
-const canvas = document.getElementById("gameCanvas");
-const ctx = canvas.getContext("2d");
+/* =========================================================
+   LAKY RACING
+   WebRTC / PeerJS Multiplayer
+========================================================= */
 
-const mapCanvas = document.getElementById("mapCanvas");
-const mapCtx = mapCanvas.getContext("2d");
+
+/* =========================================================
+   DOM
+========================================================= */
 
 const menu = document.getElementById("menu");
 const gameUI = document.getElementById("gameUI");
-const finish = document.getElementById("finish");
 
-const startButton = document.getElementById("startButton");
-const restartButton = document.getElementById("restartButton");
+const createRoomButton =
+    document.getElementById("createRoomButton");
 
-const lapText = document.getElementById("lap");
-const positionText = document.getElementById("position");
-const timeText = document.getElementById("time");
-const speedText = document.getElementById("speed");
+const joinRoomButton =
+    document.getElementById("joinRoomButton");
 
-const countdown = document.getElementById("countdown");
+const copyRoomButton =
+    document.getElementById("copyRoomButton");
 
-const finishTime = document.getElementById("finishTime");
-const finishPosition = document.getElementById("finishPosition");
+const roomInput =
+    document.getElementById("roomInput");
 
-let width = 0;
-let height = 0;
+const roomInfo =
+    document.getElementById("roomInfo");
 
-let running = false;
+const roomCodeElement =
+    document.getElementById("roomCode");
+
+const connectionStatus =
+    document.getElementById("connectionStatus");
+
+const playerNameInput =
+    document.getElementById("playerName");
+
+const canvas =
+    document.getElementById("gameCanvas");
+
+const ctx =
+    canvas.getContext("2d");
+
+const mapCanvas =
+    document.getElementById("mapCanvas");
+
+const mapCtx =
+    mapCanvas.getContext("2d");
+
+const lapElement =
+    document.getElementById("lap");
+
+const positionElement =
+    document.getElementById("position");
+
+const timeElement =
+    document.getElementById("time");
+
+const speedElement =
+    document.getElementById("speed");
+
+const countdownElement =
+    document.getElementById("countdown");
+
+const playersContainer =
+    document.getElementById("playersContainer");
+
+const finish =
+    document.getElementById("finish");
+
+const finishTime =
+    document.getElementById("finishTime");
+
+const finishPosition =
+    document.getElementById("finishPosition");
+
+const restartButton =
+    document.getElementById("restartButton");
+
+
+/* =========================================================
+   CANVAS
+========================================================= */
+
+let width = window.innerWidth;
+let height = window.innerHeight;
+
+function resizeCanvas() {
+
+    width = window.innerWidth;
+    height = window.innerHeight;
+
+    canvas.width = width;
+    canvas.height = height;
+
+    mapCanvas.width = 164;
+    mapCanvas.height = 114;
+}
+
+window.addEventListener("resize", resizeCanvas);
+
+resizeCanvas();
+
+
+/* =========================================================
+   PEERJS
+========================================================= */
+
+let peer = null;
+
+let hostConnection = null;
+
+const connections = new Map();
+
+let isHost = false;
+
+let myPeerId = "";
+
+let roomCode = "";
+
+let playerName = "Jugador";
+
+
+/* =========================================================
+   PLAYER
+========================================================= */
+
+const player = {
+
+    id: "",
+
+    name: "Jugador",
+
+    x: 0,
+
+    y: 0,
+
+    angle: 0,
+
+    speed: 0,
+
+    lap: 1,
+
+    checkpoint: 0,
+
+    finished: false
+
+};
+
+
+/* =========================================================
+   REMOTE PLAYERS
+========================================================= */
+
+const remotePlayers = new Map();
+
+
+/* =========================================================
+   TRACK
+========================================================= */
+
+const track = [
+
+    { x: 0.15, y: 0.30 },
+
+    { x: 0.30, y: 0.16 },
+
+    { x: 0.55, y: 0.14 },
+
+    { x: 0.78, y: 0.22 },
+
+    { x: 0.86, y: 0.42 },
+
+    { x: 0.78, y: 0.62 },
+
+    { x: 0.58, y: 0.76 },
+
+    { x: 0.32, y: 0.78 },
+
+    { x: 0.14, y: 0.66 },
+
+    { x: 0.10, y: 0.46 }
+
+];
+
+
+const TRACK_WIDTH = 130;
+
+
+/* =========================================================
+   GAME STATE
+========================================================= */
+
+let gameRunning = false;
+
 let raceStarted = false;
-let raceFinished = false;
 
 let raceStartTime = 0;
-let elapsedTime = 0;
 
-let lastTime = 0;
+let lastFrame = performance.now();
+
+let totalLaps = 3;
+
+
+/* =========================================================
+   CONTROLS
+========================================================= */
 
 const keys = {};
 
@@ -40,8 +213,8 @@ window.addEventListener("keydown", event => {
     keys[event.key.toLowerCase()] = true;
 
     if (
-        ["arrowup", "arrowdown", "arrowleft", "arrowright", " "]
-        .includes(event.key.toLowerCase())
+        event.key === " " ||
+        event.key.startsWith("Arrow")
     ) {
         event.preventDefault();
     }
@@ -49,254 +222,832 @@ window.addEventListener("keydown", event => {
 });
 
 window.addEventListener("keyup", event => {
+
     keys[event.key.toLowerCase()] = false;
+
 });
 
 
-/* =========================
-   RESIZE
-========================= */
+/* =========================================================
+   UTILS
+========================================================= */
 
-function resize() {
+function randomCode(length = 6) {
 
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const chars =
+        "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
-    width = window.innerWidth;
-    height = window.innerHeight;
+    let result = "";
 
-    canvas.width = width * dpr;
-    canvas.height = height * dpr;
+    for (let i = 0; i < length; i++) {
 
-    canvas.style.width = width + "px";
-    canvas.style.height = height + "px";
+        result +=
+            chars[Math.floor(Math.random() * chars.length)];
 
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
 
-    mapCanvas.width = 360;
-    mapCanvas.height = 240;
+    return result;
+
 }
 
-window.addEventListener("resize", resize);
-resize();
+
+function normalizeCode(code) {
+
+    return code
+        .trim()
+        .toUpperCase()
+        .replace(/[^A-Z0-9_-]/g, "");
+
+}
 
 
-/* =========================
-   TRACK
-========================= */
+function setStatus(text) {
 
-const track = [
-    { x: 0.18, y: 0.30 },
-    { x: 0.28, y: 0.18 },
-    { x: 0.50, y: 0.15 },
-    { x: 0.70, y: 0.18 },
-    { x: 0.82, y: 0.30 },
-    { x: 0.85, y: 0.52 },
-    { x: 0.76, y: 0.68 },
-    { x: 0.58, y: 0.76 },
-    { x: 0.37, y: 0.78 },
-    { x: 0.20, y: 0.67 },
-    { x: 0.14, y: 0.50 }
-];
+    connectionStatus.textContent = text;
 
-const trackWidth = 120;
+}
 
 
-/* =========================
-   PLAYER
-========================= */
+function showGame() {
 
-const player = {
-    x: 0,
-    y: 0,
+    menu.classList.add("hidden");
 
-    angle: 0,
+    gameUI.classList.remove("hidden");
 
-    speed: 0,
-
-    width: 28,
-    height: 48,
-
-    maxSpeed: 420,
-    acceleration: 280,
-    braking: 450,
-
-    friction: 130,
-
-    turnSpeed: 2.8,
-
-    lap: 1,
-
-    checkpoint: 0,
-
-    lastCheckpoint: 0
-};
+}
 
 
-/* =========================
-   INIT PLAYER
-========================= */
+function formatTime(ms) {
 
-function resetPlayer() {
+    const total =
+        Math.max(0, ms);
 
-    const start = getTrackPoint(0);
-    const next = getTrackPoint(1);
+    const minutes =
+        Math.floor(total / 60000);
 
-    player.x = start.x;
-    player.y = start.y;
+    const seconds =
+        Math.floor((total % 60000) / 1000);
 
-    player.angle = Math.atan2(
-        next.y - start.y,
-        next.x - start.x
+    const milliseconds =
+        Math.floor(total % 1000);
+
+    return (
+        String(minutes).padStart(2, "0") +
+        ":" +
+        String(seconds).padStart(2, "0") +
+        "." +
+        String(milliseconds).padStart(3, "0")
     );
 
-    player.speed = 0;
+}
 
-    player.lap = 1;
-    player.checkpoint = 0;
-    player.lastCheckpoint = 0;
+
+/* =========================================================
+   PEER CREATION
+========================================================= */
+
+function createPeer(id) {
+
+    return new Peer(id, {
+
+        debug: 1,
+
+        config: {
+
+            iceServers: [
+
+                {
+                    urls:
+                        "stun:stun.l.google.com:19302"
+                }
+
+            ]
+
+        }
+
+    });
 
 }
 
 
-/* =========================
-   TRACK POINT
-========================= */
+/* =========================================================
+   CREATE ROOM
+========================================================= */
 
-function getTrackPoint(index) {
+createRoomButton.addEventListener("click", () => {
 
-    const p = track[index % track.length];
+    playerName =
+        playerNameInput.value.trim() ||
+        "Jugador";
+
+    roomCode =
+        randomCode(6);
+
+    isHost = true;
+
+    createRoomButton.disabled = true;
+
+    joinRoomButton.disabled = true;
+
+    roomCodeElement.textContent =
+        roomCode;
+
+    roomInfo.classList.remove("hidden");
+
+    setStatus("Creando sala...");
+
+
+    /*
+       El código de sala también funciona
+       como ID del host.
+    */
+
+    peer =
+        createPeer("laky-" + roomCode);
+
+
+    peer.on("open", id => {
+
+        myPeerId = id;
+
+        player.id = id;
+
+        player.name = playerName;
+
+        setStatus(
+            "Sala creada. Esperando jugadores..."
+        );
+
+        startLocalGame();
+
+    });
+
+
+    peer.on("connection", connection => {
+
+        setupHostConnection(connection);
+
+    });
+
+
+    peer.on("error", error => {
+
+        console.error(error);
+
+        setStatus(
+            "Error: " + error.type
+        );
+
+        createRoomButton.disabled = false;
+
+        joinRoomButton.disabled = false;
+
+    });
+
+});
+
+
+/* =========================================================
+   HOST CONNECTION
+========================================================= */
+
+function setupHostConnection(connection) {
+
+    connection.on("open", () => {
+
+        connections.set(
+            connection.peer,
+            connection
+        );
+
+        setStatus(
+            "Jugador conectado"
+        );
+
+
+        connection.send({
+
+            type: "welcome",
+
+            id: player.id,
+
+            host: true,
+
+            players:
+                getAllPlayers()
+
+        });
+
+
+        broadcastState();
+
+    });
+
+
+    connection.on("data", data => {
+
+        handleNetworkData(
+            data,
+            connection
+        );
+
+    });
+
+
+    connection.on("close", () => {
+
+        connections.delete(
+            connection.peer
+        );
+
+        remotePlayers.delete(
+            connection.peer
+        );
+
+        updatePlayerList();
+
+    });
+
+
+    connection.on("error", error => {
+
+        console.error(
+            "Connection error:",
+            error
+        );
+
+    });
+
+}
+
+
+/* =========================================================
+   JOIN ROOM
+========================================================= */
+
+joinRoomButton.addEventListener("click", () => {
+
+    const code =
+        normalizeCode(roomInput.value);
+
+    if (!code) {
+
+        setStatus(
+            "Escribe un código."
+        );
+
+        return;
+
+    }
+
+
+    playerName =
+        playerNameInput.value.trim() ||
+        "Jugador";
+
+
+    roomCode = code;
+
+    isHost = false;
+
+    createRoomButton.disabled = true;
+
+    joinRoomButton.disabled = true;
+
+    setStatus(
+        "Conectando a la sala..."
+    );
+
+
+    peer =
+        createPeer();
+
+
+    peer.on("open", id => {
+
+        myPeerId = id;
+
+        player.id = id;
+
+        player.name = playerName;
+
+
+        const hostId =
+            "laky-" + roomCode;
+
+
+        hostConnection =
+            peer.connect(
+                hostId,
+                {
+                    reliable: true
+                }
+            );
+
+
+        hostConnection.on("open", () => {
+
+            setStatus(
+                "Conectado al host."
+            );
+
+
+            hostConnection.send({
+
+                type: "join",
+
+                id: player.id,
+
+                name: player.name
+
+            });
+
+
+            startLocalGame();
+
+        });
+
+
+        hostConnection.on("data", data => {
+
+            handleNetworkData(
+                data,
+                hostConnection
+            );
+
+        });
+
+
+        hostConnection.on("close", () => {
+
+            setStatus(
+                "El host se desconectó."
+            );
+
+            stopGame();
+
+        });
+
+
+        hostConnection.on("error", error => {
+
+            console.error(error);
+
+            setStatus(
+                "Error de conexión."
+            );
+
+        });
+
+    });
+
+
+    peer.on("error", error => {
+
+        console.error(error);
+
+        setStatus(
+            "No se pudo encontrar la sala."
+        );
+
+        createRoomButton.disabled = false;
+
+        joinRoomButton.disabled = false;
+
+    });
+
+});
+
+
+/* =========================================================
+   NETWORK DATA
+========================================================= */
+
+function handleNetworkData(data, connection) {
+
+    if (!data || !data.type) {
+        return;
+    }
+
+
+    /* =====================
+       JOIN
+    ===================== */
+
+    if (data.type === "join") {
+
+        if (!isHost) {
+            return;
+        }
+
+
+        remotePlayers.set(
+            data.id,
+            {
+
+                id: data.id,
+
+                name:
+                    data.name || "Jugador",
+
+                x: 0,
+
+                y: 0,
+
+                angle: 0,
+
+                speed: 0,
+
+                lap: 1,
+
+                checkpoint: 0,
+
+                finished: false
+
+            }
+        );
+
+
+        updatePlayerList();
+
+
+        /*
+           Mandamos la posición inicial
+           a todos.
+        */
+
+        broadcastState();
+
+        return;
+    }
+
+
+    /* =====================
+       WELCOME
+    ===================== */
+
+    if (data.type === "welcome") {
+
+        if (!isHost) {
+
+            if (Array.isArray(data.players)) {
+
+                data.players.forEach(p => {
+
+                    if (p.id !== player.id) {
+
+                        remotePlayers.set(
+                            p.id,
+                            p
+                        );
+
+                    }
+
+                });
+
+            }
+
+            updatePlayerList();
+
+        }
+
+        return;
+    }
+
+
+    /* =====================
+       STATE
+    ===================== */
+
+    if (data.type === "state") {
+
+        if (data.player) {
+
+            const p =
+                data.player;
+
+            if (p.id !== player.id) {
+
+                remotePlayers.set(
+                    p.id,
+                    p
+                );
+
+                updatePlayerList();
+
+            }
+
+        }
+
+        return;
+    }
+
+
+    /* =====================
+       FULL STATE
+    ===================== */
+
+    if (data.type === "fullState") {
+
+        if (Array.isArray(data.players)) {
+
+            data.players.forEach(p => {
+
+                if (p.id !== player.id) {
+
+                    remotePlayers.set(
+                        p.id,
+                        p
+                    );
+
+                }
+
+            });
+
+            updatePlayerList();
+
+        }
+
+        return;
+    }
+
+}
+
+
+/* =========================================================
+   PLAYER DATA
+========================================================= */
+
+function getPlayerData() {
 
     return {
-        x: p.x * width,
-        y: p.y * height
+
+        id: player.id,
+
+        name: player.name,
+
+        x: player.x,
+
+        y: player.y,
+
+        angle: player.angle,
+
+        speed: player.speed,
+
+        lap: player.lap,
+
+        checkpoint:
+            player.checkpoint,
+
+        finished:
+            player.finished
+
     };
 
 }
 
 
-/* =========================
-   DISTANCE
-========================= */
+function getAllPlayers() {
 
-function distance(a, b) {
+    const list = [
+        getPlayerData()
+    ];
 
-    return Math.sqrt(
-        Math.pow(a.x - b.x, 2) +
-        Math.pow(a.y - b.y, 2)
-    );
+    remotePlayers.forEach(p => {
+
+        list.push(p);
+
+    });
+
+    return list;
 
 }
 
 
-/* =========================
-   CLOSEST TRACK POINT
-========================= */
+/* =========================================================
+   SEND STATE
+========================================================= */
 
-function getClosestTrackPoint(x, y) {
+let lastNetworkUpdate = 0;
 
-    let closest = 0;
-    let minDistance = Infinity;
+function sendState() {
 
-    for (let i = 0; i < track.length; i++) {
+    const now =
+        performance.now();
 
-        const p = getTrackPoint(i);
 
-        const d = distance(
-            { x, y },
-            p
-        );
+    /*
+       20 actualizaciones por segundo.
+    */
 
-        if (d < minDistance) {
+    if (now - lastNetworkUpdate < 50) {
+        return;
+    }
 
-            minDistance = d;
-            closest = i;
+    lastNetworkUpdate = now;
+
+
+    const packet = {
+
+        type: "state",
+
+        player:
+            getPlayerData()
+
+    };
+
+
+    if (isHost) {
+
+        connections.forEach(conn => {
+
+            if (conn.open) {
+
+                conn.send(packet);
+
+            }
+
+        });
+
+    } else {
+
+        if (
+            hostConnection &&
+            hostConnection.open
+        ) {
+
+            hostConnection.send(packet);
 
         }
 
     }
 
-    return {
-        index: closest,
-        distance: minDistance
-    };
-
 }
 
 
-/* =========================
-   START GAME
-========================= */
+/* =========================================================
+   BROADCAST
+========================================================= */
 
-startButton.addEventListener("click", startGame);
+function broadcastState() {
 
-restartButton.addEventListener("click", () => {
-
-    finish.classList.add("hidden");
-
-    startGame();
-
-});
-
-
-function startGame() {
-
-    menu.classList.add("hidden");
-    gameUI.classList.remove("hidden");
-
-    raceFinished = false;
-    raceStarted = false;
-
-    elapsedTime = 0;
-
-    resetPlayer();
-
-    countdown.textContent = "3";
-
-    setTimeout(() => {
-        countdown.textContent = "2";
-    }, 700);
-
-    setTimeout(() => {
-        countdown.textContent = "1";
-    }, 1400);
-
-    setTimeout(() => {
-
-        countdown.textContent = "GO!";
-
-        raceStarted = true;
-        raceStartTime = performance.now();
-
-        setTimeout(() => {
-            countdown.textContent = "";
-        }, 600);
-
-    }, 2100);
-
-    running = true;
-
-    lastTime = performance.now();
-
-    requestAnimationFrame(gameLoop);
-
-}
-
-
-/* =========================
-   UPDATE
-========================= */
-
-function update(delta) {
-
-    if (!raceStarted || raceFinished) {
+    if (!isHost) {
         return;
     }
 
-    const forward =
+
+    const packet = {
+
+        type: "fullState",
+
+        players:
+            getAllPlayers()
+
+    };
+
+
+    connections.forEach(conn => {
+
+        if (conn.open) {
+
+            conn.send(packet);
+
+        }
+
+    });
+
+}
+
+
+/* =========================================================
+   START GAME
+========================================================= */
+
+function startLocalGame() {
+
+    showGame();
+
+    resetPlayer();
+
+    gameRunning = true;
+
+    raceStarted = false;
+
+    finish.classList.add("hidden");
+
+    startCountdown();
+
+}
+
+
+/* =========================================================
+   RESET PLAYER
+========================================================= */
+
+function resetPlayer() {
+
+    player.x =
+        width * 0.15;
+
+    player.y =
+        height * 0.30;
+
+    player.angle =
+        0;
+
+    player.speed =
+        0;
+
+    player.lap =
+        1;
+
+    player.checkpoint =
+        0;
+
+    player.finished =
+        false;
+
+}
+
+
+/* =========================================================
+   COUNTDOWN
+========================================================= */
+
+function startCountdown() {
+
+    let number = 3;
+
+    countdownElement.textContent =
+        number;
+
+
+    const interval =
+        setInterval(() => {
+
+            number--;
+
+
+            if (number > 0) {
+
+                countdownElement.textContent =
+                    number;
+
+            }
+
+            else if (number === 0) {
+
+                countdownElement.textContent =
+                    "¡YA!";
+
+                raceStarted = true;
+
+                raceStartTime =
+                    performance.now();
+
+            }
+
+            else {
+
+                clearInterval(interval);
+
+                countdownElement.textContent =
+                    "";
+
+            }
+
+        }, 1000);
+
+}
+
+
+/* =========================================================
+   STOP GAME
+========================================================= */
+
+function stopGame() {
+
+    gameRunning = false;
+
+}
+
+
+/* =========================================================
+   PHYSICS
+========================================================= */
+
+function updatePlayer(dt) {
+
+    if (!raceStarted || player.finished) {
+        return;
+    }
+
+
+    const accelerate =
         keys["w"] ||
         keys["arrowup"];
 
-    const backward =
+    const brake =
         keys["s"] ||
         keys["arrowdown"];
 
@@ -308,232 +1059,843 @@ function update(delta) {
         keys["d"] ||
         keys["arrowright"];
 
-    const drifting = keys[" "];
+    const drift =
+        keys[" "];
 
 
-    /* ACCELERATION */
+    /* =====================
+       ACCELERATION
+    ===================== */
 
-    if (forward) {
+    if (accelerate) {
 
         player.speed +=
-            player.acceleration * delta;
+            0.35 * dt * 60;
 
     }
 
-    if (backward) {
+
+    if (brake) {
 
         player.speed -=
-            player.braking * delta;
+            0.45 * dt * 60;
 
     }
 
 
-    /* FRICTION */
+    /* =====================
+       FRICTION
+    ===================== */
 
-    if (!forward && !backward) {
+    if (!accelerate && !brake) {
 
-        if (player.speed > 0) {
-
-            player.speed -=
-                player.friction * delta;
-
-            if (player.speed < 0) {
-                player.speed = 0;
-            }
-
-        } else if (player.speed < 0) {
-
-            player.speed +=
-                player.friction * delta;
-
-            if (player.speed > 0) {
-                player.speed = 0;
-            }
-
-        }
+        player.speed *=
+            Math.pow(0.985, dt * 60);
 
     }
 
 
-    /* DRIFT */
+    /* =====================
+       DRIFT
+    ===================== */
 
-    let maxSpeed = player.maxSpeed;
+    if (drift) {
 
-    if (drifting) {
-
-        maxSpeed *= 0.82;
+        player.speed *=
+            Math.pow(0.993, dt * 60);
 
     }
 
-    player.speed = Math.max(
-        -120,
-        Math.min(
-            maxSpeed,
-            player.speed
-        )
-    );
+
+    /* =====================
+       LIMIT
+    ===================== */
+
+    const maxSpeed =
+        drift ? 9 : 8;
 
 
-    /* TURN */
+    player.speed =
+        Math.max(
+            -3,
+            Math.min(
+                maxSpeed,
+                player.speed
+            )
+        );
 
-    if (Math.abs(player.speed) > 10) {
+
+    /* =====================
+       STEERING
+    ===================== */
+
+    if (
+        Math.abs(player.speed) > 0.1
+    ) {
 
         const direction =
-            player.speed >= 0 ? 1 : -1;
+            player.speed >= 0
+                ? 1
+                : -1;
 
-        const speedFactor =
-            Math.min(
-                Math.abs(player.speed) / 220,
-                1
-            );
-
-        let steering =
-            player.turnSpeed *
-            speedFactor *
-            delta;
-
-        if (drifting) {
-            steering *= 1.35;
-        }
 
         if (left) {
-            player.angle -= steering * direction;
+
+            player.angle -=
+                0.045 *
+                direction *
+                dt *
+                60;
+
         }
 
+
         if (right) {
-            player.angle += steering * direction;
+
+            player.angle +=
+                0.045 *
+                direction *
+                dt *
+                60;
+
         }
 
     }
 
 
-    /* MOVE */
+    /* =====================
+       MOVEMENT
+    ===================== */
 
     player.x +=
         Math.cos(player.angle) *
         player.speed *
-        delta;
+        dt *
+        60;
 
     player.y +=
         Math.sin(player.angle) *
         player.speed *
-        delta;
+        dt *
+        60;
 
 
-    /* TRACK LIMIT */
+    /* =====================
+       SCREEN WRAP
+    ===================== */
 
-    const closest =
-        getClosestTrackPoint(
-            player.x,
-            player.y
-        );
-
-    if (closest.distance > trackWidth / 2) {
-
-        player.speed *= 0.92;
-
+    if (player.x < 0) {
+        player.x = width;
     }
 
-
-    /* WRAP SCREEN */
-
-    if (player.x < -30) {
-        player.x = width + 30;
+    if (player.x > width) {
+        player.x = 0;
     }
 
-    if (player.x > width + 30) {
-        player.x = -30;
+    if (player.y < 0) {
+        player.y = height;
     }
 
-    if (player.y < -30) {
-        player.y = height + 30;
+    if (player.y > height) {
+        player.y = 0;
     }
 
-    if (player.y > height + 30) {
-        player.y = -30;
-    }
-
-
-    /* CHECKPOINTS */
 
     checkProgress();
 
 }
 
 
-/* =========================
-   LAP SYSTEM
-========================= */
+/* =========================================================
+   CHECKPOINTS
+========================================================= */
+
+function getTrackPosition(index) {
+
+    const p =
+        track[
+            index %
+            track.length
+        ];
+
+    return {
+
+        x: p.x * width,
+
+        y: p.y * height
+
+    };
+
+}
+
+
+function distance(a, b) {
+
+    return Math.hypot(
+        a.x - b.x,
+        a.y - b.y
+    );
+
+}
+
 
 function checkProgress() {
 
-    const closest =
-        getClosestTrackPoint(
-            player.x,
-            player.y
+    const nextIndex =
+        (player.checkpoint + 1) %
+        track.length;
+
+
+    const next =
+        getTrackPosition(
+            nextIndex
         );
 
-    let index = closest.index;
 
-    const total = track.length;
+    const current = {
 
-    const expected =
-        player.checkpoint;
+        x: player.x,
 
-    const difference =
-        (index - expected + total) % total;
+        y: player.y
 
-    if (
-        difference > 0 &&
-        difference <= 2
-    ) {
-
-        player.checkpoint =
-            (index + 1) % total;
-
-    }
+    };
 
 
     /*
-       Para completar una vuelta:
-       el jugador debe pasar por todos
-       los puntos y regresar al inicio.
+       Si estamos cerca del
+       siguiente checkpoint.
     */
 
     if (
-        player.checkpoint === 0 &&
-        player.lastCheckpoint === total - 1
+        distance(
+            current,
+            next
+        ) < 110
     ) {
 
-        player.lap++;
+        player.checkpoint =
+            nextIndex;
 
-        player.lastCheckpoint = 0;
 
-        if (player.lap > 3) {
+        /*
+           Completamos vuelta cuando
+           pasamos por el último checkpoint
+           y regresamos al primero.
+        */
 
-            finishRace();
+        if (
+            player.checkpoint === 0
+        ) {
+
+            player.lap++;
+
+
+            if (
+                player.lap > totalLaps
+            ) {
+
+                finishRace();
+
+            }
 
         }
-
-    }
-
-    if (
-        player.checkpoint !== 0
-    ) {
-
-        player.lastCheckpoint =
-            player.checkpoint - 1;
 
     }
 
 }
 
 
-/* =========================
+/* =========================================================
+   FINISH
+========================================================= */
+
+function finishRace() {
+
+    player.finished = true;
+
+    player.speed = 0;
+
+
+    const elapsed =
+        performance.now() -
+        raceStartTime;
+
+
+    finishTime.textContent =
+        "Tiempo: " +
+        formatTime(elapsed);
+
+
+    finishPosition.textContent =
+        "Posición: " +
+        calculatePosition() +
+        "º";
+
+
+    finish.classList.remove(
+        "hidden"
+    );
+
+
+    sendState();
+
+}
+
+
+/* =========================================================
+   POSITION
+========================================================= */
+
+function calculatePosition() {
+
+    let position = 1;
+
+
+    remotePlayers.forEach(p => {
+
+        if (
+            p.lap > player.lap
+        ) {
+
+            position++;
+
+        }
+
+    });
+
+
+    return position;
+
+}
+
+
+/* =========================================================
    DRAW TRACK
-========================= */
+========================================================= */
 
 function drawTrack() {
+
+    if (track.length < 2) {
+        return;
+    }
+
+
+    ctx.lineJoin =
+        "round";
+
+    ctx.lineCap =
+        "round";
+
+
+    /* GRASS */
+
+    ctx.fillStyle =
+        "#28752c";
+
+    ctx.fillRect(
+        0,
+        0,
+        width,
+        height
+    );
+
+
+    /* ROAD */
+
+    ctx.beginPath();
+
+    const first =
+        getTrackPosition(0);
+
+    ctx.moveTo(
+        first.x,
+        first.y
+    );
+
+
+    for (let i = 1; i <= track.length; i++) {
+
+        const point =
+            getTrackPosition(i);
+
+        ctx.lineTo(
+            point.x,
+            point.y
+        );
+
+    }
+
+    ctx.closePath();
+
+
+    ctx.strokeStyle =
+        "#151515";
+
+    ctx.lineWidth =
+        TRACK_WIDTH + 35;
+
+    ctx.stroke();
+
+
+    ctx.strokeStyle =
+        "#555";
+
+    ctx.lineWidth =
+        TRACK_WIDTH;
+
+    ctx.stroke();
+
+
+    /* ROAD CENTER */
+
+    ctx.setLineDash([
+        20,
+        20
+    ]);
+
+    ctx.strokeStyle =
+        "#ddd";
+
+    ctx.lineWidth =
+        3;
+
+    ctx.stroke();
+
+
+    ctx.setLineDash([]);
+
+
+    /* START LINE */
+
+    const start =
+        getTrackPosition(0);
+
+    ctx.save();
+
+    ctx.translate(
+        start.x,
+        start.y
+    );
+
+    ctx.rotate(0);
+
+    const tileSize = 12;
+
+    for (
+        let x = -TRACK_WIDTH / 2;
+        x < TRACK_WIDTH / 2;
+        x += tileSize
+    ) {
+
+        for (
+            let y = -20;
+            y < 20;
+            y += tileSize
+        ) {
+
+            const odd =
+                Math.floor(
+                    (x + TRACK_WIDTH / 2) /
+                    tileSize
+                ) %
+                2;
+
+            ctx.fillStyle =
+                (
+                    (Math.floor(
+                        (y + 20) /
+                        tileSize
+                    ) + odd) %
+                    2 === 0
+                )
+                    ? "#fff"
+                    : "#111";
+
+
+            ctx.fillRect(
+                x,
+                y,
+                tileSize,
+                tileSize
+            );
+
+        }
+
+    }
+
+    ctx.restore();
+
+}
+
+
+/* =========================================================
+   DRAW CAR
+========================================================= */
+
+function drawCar(
+    p,
+    local = false
+) {
+
+    ctx.save();
+
+    ctx.translate(
+        p.x,
+        p.y
+    );
+
+    ctx.rotate(
+        p.angle
+    );
+
+
+    /* shadow */
+
+    ctx.fillStyle =
+        "rgba(0,0,0,0.35)";
+
+    ctx.fillRect(
+        -17,
+        -10,
+        34,
+        20
+    );
+
+
+    /* body */
+
+    ctx.fillStyle =
+        local
+            ? "#e53935"
+            : "#3498db";
+
+    ctx.fillRect(
+        -18,
+        -9,
+        36,
+        18
+    );
+
+
+    /* hood */
+
+    ctx.fillStyle =
+        local
+            ? "#ff5555"
+            : "#5dade2";
+
+    ctx.fillRect(
+        3,
+        -7,
+        12,
+        14
+    );
+
+
+    /* windows */
+
+    ctx.fillStyle =
+        "#111";
+
+    ctx.fillRect(
+        -5,
+        -7,
+        8,
+        14
+    );
+
+
+    /* wheels */
+
+    ctx.fillStyle =
+        "#080808";
+
+    ctx.fillRect(
+        -11,
+        -12,
+        7,
+        5
+    );
+
+    ctx.fillRect(
+        -11,
+        7,
+        7,
+        5
+    );
+
+    ctx.fillRect(
+        9,
+        -12,
+        7,
+        5
+    );
+
+    ctx.fillRect(
+        9,
+        7,
+        7,
+        5
+    );
+
+
+    ctx.restore();
+
+
+    /* name */
+
+    ctx.save();
+
+    ctx.font =
+        "12px Arial";
+
+    ctx.textAlign =
+        "center";
+
+    ctx.fillStyle =
+        "white";
+
+    ctx.shadowColor =
+        "black";
+
+    ctx.shadowBlur =
+        4;
+
+    ctx.fillText(
+        p.name,
+        p.x,
+        p.y - 20
+    );
+
+    ctx.restore();
+
+}
+
+
+/* =========================================================
+   DRAW MINIMAP
+========================================================= */
+
+function drawMinimap() {
+
+    mapCtx.clearRect(
+        0,
+        0,
+        mapCanvas.width,
+        mapCanvas.height
+    );
+
+
+    mapCtx.fillStyle =
+        "#28752c";
+
+    mapCtx.fillRect(
+        0,
+        0,
+        mapCanvas.width,
+        mapCanvas.height
+    );
+
+
+    mapCtx.beginPath();
+
+
+    track.forEach(
+        (point, index) => {
+
+            const x =
+                point.x *
+                mapCanvas.width;
+
+            const y =
+                point.y *
+                mapCanvas.height;
+
+
+            if (index === 0) {
+
+                mapCtx.moveTo(
+                    x,
+                    y
+                );
+
+            }
+
+            else {
+
+                mapCtx.lineTo(
+                    x,
+                    y
+                );
+
+            }
+
+        }
+    );
+
+
+    mapCtx.closePath();
+
+
+    mapCtx.strokeStyle =
+        "#555";
+
+    mapCtx.lineWidth =
+        25;
+
+    mapCtx.stroke();
+
+
+    mapCtx.strokeStyle =
+        "#777";
+
+    mapCtx.lineWidth =
+        18;
+
+    mapCtx.stroke();
+
+
+    /* local */
+
+    mapCtx.fillStyle =
+        "#e53935";
+
+    mapCtx.beginPath();
+
+    mapCtx.arc(
+        player.x / width * mapCanvas.width,
+        player.y / height * mapCanvas.height,
+        4,
+        0,
+        Math.PI * 2
+    );
+
+    mapCtx.fill();
+
+
+    /* remote */
+
+    remotePlayers.forEach(p => {
+
+        mapCtx.fillStyle =
+            "#3498db";
+
+        mapCtx.beginPath();
+
+        mapCtx.arc(
+            p.x / width * mapCanvas.width,
+            p.y / height * mapCanvas.height,
+            4,
+            0,
+            Math.PI * 2
+        );
+
+        mapCtx.fill();
+
+    });
+
+}
+
+
+/* =========================================================
+   PLAYER LIST
+========================================================= */
+
+function updatePlayerList() {
+
+    playersContainer.innerHTML = "";
+
+
+    const localEntry =
+        document.createElement("div");
+
+    localEntry.className =
+        "player-entry";
+
+    localEntry.innerHTML =
+        `<span>${escapeHTML(player.name)}</span>
+         <span>🏎️</span>`;
+
+    playersContainer.appendChild(
+        localEntry
+    );
+
+
+    remotePlayers.forEach(p => {
+
+        const entry =
+            document.createElement("div");
+
+        entry.className =
+            "player-entry";
+
+        entry.innerHTML =
+            `<span>${escapeHTML(p.name)}</span>
+             <span>🏎️</span>`;
+
+        playersContainer.appendChild(
+            entry
+        );
+
+    });
+
+}
+
+
+function escapeHTML(text) {
+
+    return String(text)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+
+}
+
+
+/* =========================================================
+   GAME LOOP
+========================================================= */
+
+function gameLoop(now) {
+
+    const dt =
+        Math.min(
+            0.05,
+            (now - lastFrame) /
+            1000
+        );
+
+    lastFrame =
+        now;
+
+
+    if (gameRunning) {
+
+        updatePlayer(dt);
+
+        sendState();
+
+        draw();
+
+        updateUI();
+
+    }
+
+
+    requestAnimationFrame(
+        gameLoop
+    );
+
+}
+
+
+/* =========================================================
+   DRAW
+========================================================= */
+
+function draw() {
 
     ctx.clearRect(
         0,
@@ -543,559 +1905,143 @@ function drawTrack() {
     );
 
 
-    /* GRASS */
-
-    ctx.fillStyle = "#39733c";
-
-    ctx.fillRect(
-        0,
-        0,
-        width,
-        height
-    );
+    drawTrack();
 
 
-    /* GRASS DETAILS */
+    /*
+       Remote players
+       primero para que nuestro
+       carro quede visible encima.
+    */
 
-    ctx.fillStyle =
-        "rgba(255,255,255,0.025)";
+    remotePlayers.forEach(p => {
 
-    for (let x = 0; x < width; x += 40) {
-
-        for (let y = 0; y < height; y += 40) {
-
-            ctx.fillRect(
-                x,
-                y,
-                2,
-                2
-            );
-
-        }
-
-    }
-
-
-    /* ROAD */
-
-    drawTrackPath(
-        trackWidth + 18,
-        "#d5d5d5"
-    );
-
-    drawTrackPath(
-        trackWidth,
-        "#303030"
-    );
-
-
-    /* ROAD STRIPES */
-
-    ctx.lineWidth = 3;
-
-    ctx.strokeStyle =
-        "rgba(255,255,255,0.35)";
-
-    ctx.setLineDash([20, 20]);
-
-    drawTrackPath(
-        trackWidth - 12,
-        null,
-        true
-    );
-
-    ctx.setLineDash([]);
-
-
-    /* START LINE */
-
-    const start = getTrackPoint(0);
-    const next = getTrackPoint(1);
-
-    const angle =
-        Math.atan2(
-            next.y - start.y,
-            next.x - start.x
-        ) + Math.PI / 2;
-
-    ctx.save();
-
-    ctx.translate(
-        start.x,
-        start.y
-    );
-
-    ctx.rotate(angle);
-
-    const squares = 8;
-    const size = trackWidth / squares;
-
-    for (let i = 0; i < squares; i++) {
-
-        ctx.fillStyle =
-            i % 2 === 0
-                ? "#ffffff"
-                : "#111111";
-
-        ctx.fillRect(
-            -trackWidth / 2 +
-            i * size,
-            -5,
-            size,
-            10
+        drawCar(
+            p,
+            false
         );
-
-    }
-
-    ctx.restore();
-
-}
-
-
-/* =========================
-   TRACK PATH
-========================= */
-
-function drawTrackPath(
-    lineWidth,
-    color,
-    dashed = false
-) {
-
-    ctx.beginPath();
-
-    track.forEach((point, index) => {
-
-        const p = getTrackPoint(index);
-
-        if (index === 0) {
-
-            ctx.moveTo(
-                p.x,
-                p.y
-            );
-
-        } else {
-
-            ctx.lineTo(
-                p.x,
-                p.y
-            );
-
-        }
 
     });
 
-    const first = getTrackPoint(0);
 
-    ctx.lineTo(
-        first.x,
-        first.y
+    drawCar(
+        player,
+        true
     );
 
-    if (color) {
 
-        ctx.lineWidth = lineWidth;
-        ctx.strokeStyle = color;
-        ctx.lineJoin = "round";
-        ctx.lineCap = "round";
-
-        ctx.stroke();
-
-    } else {
-
-        ctx.lineWidth = lineWidth;
-        ctx.stroke();
-
-    }
+    drawMinimap();
 
 }
 
 
-/* =========================
-   DRAW PLAYER
-========================= */
-
-function drawPlayer() {
-
-    ctx.save();
-
-    ctx.translate(
-        player.x,
-        player.y
-    );
-
-    ctx.rotate(
-        player.angle + Math.PI / 2
-    );
-
-
-    /* SHADOW */
-
-    ctx.fillStyle =
-        "rgba(0,0,0,0.35)";
-
-    ctx.beginPath();
-
-    ctx.roundRect(
-        -player.width / 2 + 4,
-        -player.height / 2 + 5,
-        player.width,
-        player.height,
-        7
-    );
-
-    ctx.fill();
-
-
-    /* CAR BODY */
-
-    ctx.fillStyle = "#e53935";
-
-    ctx.beginPath();
-
-    ctx.roundRect(
-        -player.width / 2,
-        -player.height / 2,
-        player.width,
-        player.height,
-        7
-    );
-
-    ctx.fill();
-
-
-    /* WINDOWS */
-
-    ctx.fillStyle = "#171717";
-
-    ctx.beginPath();
-
-    ctx.roundRect(
-        -9,
-        -14,
-        18,
-        13,
-        4
-    );
-
-    ctx.fill();
-
-
-    /* FRONT WINDOW */
-
-    ctx.fillStyle = "#555";
-
-    ctx.beginPath();
-
-    ctx.roundRect(
-        -8,
-        -12,
-        16,
-        6,
-        2
-    );
-
-    ctx.fill();
-
-
-    /* HEADLIGHTS */
-
-    ctx.fillStyle = "#fff";
-
-    ctx.fillRect(
-        -9,
-        -22,
-        6,
-        4
-    );
-
-    ctx.fillRect(
-        3,
-        -22,
-        6,
-        4
-    );
-
-
-    /* REAR LIGHTS */
-
-    ctx.fillStyle = "#8b0000";
-
-    ctx.fillRect(
-        -9,
-        18,
-        6,
-        4
-    );
-
-    ctx.fillRect(
-        3,
-        18,
-        6,
-        4
-    );
-
-
-    /* WHEELS */
-
-    ctx.fillStyle = "#111";
-
-    ctx.fillRect(
-        -17,
-        -13,
-        5,
-        13
-    );
-
-    ctx.fillRect(
-        12,
-        -13,
-        5,
-        13
-    );
-
-    ctx.fillRect(
-        -17,
-        0,
-        5,
-        13
-    );
-
-    ctx.fillRect(
-        12,
-        0,
-        5,
-        13
-    );
-
-
-    ctx.restore();
-
-}
-
-
-/* =========================
-   MINIMAP
-========================= */
-
-function drawMinimap() {
-
-    const w = mapCanvas.width;
-    const h = mapCanvas.height;
-
-    mapCtx.clearRect(
-        0,
-        0,
-        w,
-        h
-    );
-
-
-    mapCtx.fillStyle = "#39733c";
-
-    mapCtx.fillRect(
-        0,
-        0,
-        w,
-        h
-    );
-
-
-    function drawMiniTrack(
-        width,
-        color
-    ) {
-
-        mapCtx.beginPath();
-
-        track.forEach((point, index) => {
-
-            const x = point.x * w;
-            const y = point.y * h;
-
-            if (index === 0) {
-
-                mapCtx.moveTo(
-                    x,
-                    y
-                );
-
-            } else {
-
-                mapCtx.lineTo(
-                    x,
-                    y
-                );
-
-            }
-
-        });
-
-        const first = track[0];
-
-        mapCtx.lineTo(
-            first.x * w,
-            first.y * h
-        );
-
-        mapCtx.lineWidth = width;
-        mapCtx.strokeStyle = color;
-        mapCtx.lineJoin = "round";
-        mapCtx.lineCap = "round";
-
-        mapCtx.stroke();
-
-    }
-
-
-    drawMiniTrack(
-        60,
-        "#ccc"
-    );
-
-    drawMiniTrack(
-        50,
-        "#303030"
-    );
-
-
-    /* PLAYER */
-
-    mapCtx.fillStyle = "#e53935";
-
-    mapCtx.beginPath();
-
-    mapCtx.arc(
-        (player.x / width) * w,
-        (player.y / height) * h,
-        6,
-        0,
-        Math.PI * 2
-    );
-
-    mapCtx.fill();
-
-}
-
-
-/* =========================
+/* =========================================================
    UI
-========================= */
+========================================================= */
 
 function updateUI() {
 
-    lapText.textContent =
-        Math.min(player.lap, 3) +
-        " / 3";
-
-    positionText.textContent =
-        "1.º";
-
-    const totalSeconds =
-        elapsedTime / 1000;
-
-    const minutes =
-        Math.floor(totalSeconds / 60);
-
-    const seconds =
-        Math.floor(totalSeconds % 60);
-
-    const milliseconds =
-        Math.floor(elapsedTime % 1000);
-
-    timeText.textContent =
-        String(minutes).padStart(2, "0") +
-        ":" +
-        String(seconds).padStart(2, "0") +
-        "." +
-        String(milliseconds).padStart(3, "0");
-
-
-    const kmh =
-        Math.round(
-            Math.abs(player.speed) * 0.35
-        );
-
-    speedText.textContent =
-        kmh + " km/h";
-
-}
-
-
-/* =========================
-   FINISH
-========================= */
-
-function finishRace() {
-
-    raceFinished = true;
-
-    const totalSeconds =
-        elapsedTime / 1000;
-
-    const minutes =
-        Math.floor(totalSeconds / 60);
-
-    const seconds =
-        Math.floor(totalSeconds % 60);
-
-    const milliseconds =
-        Math.floor(elapsedTime % 1000);
-
-    const formatted =
-        String(minutes).padStart(2, "0") +
-        ":" +
-        String(seconds).padStart(2, "0") +
-        "." +
-        String(milliseconds).padStart(3, "0");
-
-    finishTime.textContent =
-        "Tiempo: " + formatted;
-
-    finishPosition.textContent =
-        "Posición: 1.º";
-
-    finish.classList.remove("hidden");
-
-}
-
-
-/* =========================
-   GAME LOOP
-========================= */
-
-function gameLoop(currentTime) {
-
-    if (!running) {
-        return;
-    }
-
-    const delta =
+    lapElement.textContent =
         Math.min(
-            (currentTime - lastTime) / 1000,
-            0.05
-        );
+            player.lap,
+            totalLaps
+        ) +
+        " / " +
+        totalLaps;
 
-    lastTime = currentTime;
+
+    positionElement.textContent =
+        calculatePosition() +
+        "º";
 
 
-    if (raceStarted && !raceFinished) {
+    speedElement.textContent =
+        Math.round(
+            Math.abs(player.speed) * 25
+        ) +
+        " km/h";
 
-        elapsedTime =
-            currentTime - raceStartTime;
 
-        update(delta);
+    if (raceStarted) {
+
+        timeElement.textContent =
+            formatTime(
+                performance.now() -
+                raceStartTime
+            );
 
     }
 
-
-    drawTrack();
-    drawPlayer();
-    drawMinimap();
-    updateUI();
-
-
-    requestAnimationFrame(gameLoop);
-
 }
+
+
+/* =========================================================
+   COPY ROOM
+========================================================= */
+
+copyRoomButton.addEventListener(
+    "click",
+    async () => {
+
+        try {
+
+            await navigator.clipboard.writeText(
+                roomCode
+            );
+
+            copyRoomButton.textContent =
+                "COPIADO";
+
+            setTimeout(() => {
+
+                copyRoomButton.textContent =
+                    "COPIAR CÓDIGO";
+
+            }, 1500);
+
+        }
+
+        catch {
+
+            alert(
+                "Código de sala: " +
+                roomCode
+            );
+
+        }
+
+    }
+);
+
+
+/* =========================================================
+   RESTART
+========================================================= */
+
+restartButton.addEventListener(
+    "click",
+    () => {
+
+        finish.classList.add(
+            "hidden"
+        );
+
+        resetPlayer();
+
+        raceStarted = false;
+
+        startCountdown();
+
+    }
+);
+
+
+/* =========================================================
+   INIT
+========================================================= */
+
+updatePlayerList();
+
+requestAnimationFrame(
+    gameLoop
+);
