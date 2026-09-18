@@ -3,18 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
     <title>Laky Racing</title>
+
     <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
 
-    <!-- MENÚ -->
+    <!-- =========================
+         MENÚ
+    ========================== -->
+
     <div id="menu">
+
         <div class="menu-box">
 
             <h1>🏎️ LAKY RACING</h1>
-            <p class="subtitle">Corre. Derrapa. Gana.</p>
+
+            <p class="subtitle">
+                Corre. Derrapa. Gana.
+            </p>
+
 
             <input
                 id="playerName"
@@ -24,9 +34,11 @@
                 value="Jugador"
             >
 
+
             <button id="createRoomButton">
                 CREAR SALA
             </button>
+
 
             <div id="roomInfo" class="hidden">
 
@@ -48,9 +60,11 @@
 
             </div>
 
+
             <div class="separator">
                 <span>O</span>
             </div>
+
 
             <div class="join-box">
 
@@ -67,9 +81,11 @@
 
             </div>
 
+
             <p id="connectionStatus">
                 Desconectado
             </p>
+
 
             <div class="controls">
 
@@ -101,10 +117,14 @@
             </div>
 
         </div>
+
     </div>
 
 
-    <!-- JUEGO -->
+    <!-- =========================
+         JUEGO
+    ========================== -->
+
     <div id="gameUI" class="hidden">
 
         <div class="topbar">
@@ -139,7 +159,9 @@
 
 
         <div id="minimap">
+
             <canvas id="mapCanvas"></canvas>
+
         </div>
 
 
@@ -177,10 +199,13 @@
     </div>
 
 
-    <!-- PEERJS -->
+    <!-- PeerJS -->
+
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 
-    <!-- JUEGO -->
+
+    <!-- Juego -->
+
     <script src="game.js"></script>
 
 </body>
