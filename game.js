@@ -1,7 +1,6 @@
 /* =========================================================
    LAKY RACING
    MULTIPLAYER P2P
-   PeerJS + WebRTC
 ========================================================= */
 
 
@@ -23,6 +22,9 @@ const joinRoomButton =
 
 const copyRoomButton =
     document.getElementById("copyRoomButton");
+
+const startRaceButton =
+    document.getElementById("startRaceButton");
 
 const roomInput =
     document.getElementById("roomInput");
@@ -104,13 +106,11 @@ function resizeCanvas() {
     height =
         window.innerHeight;
 
-
     canvas.width =
         width;
 
     canvas.height =
         height;
-
 
     mapCanvas.width =
         164;
@@ -129,7 +129,7 @@ resizeCanvas();
 
 
 /* =========================================================
-   PEER
+   NETWORK
 ========================================================= */
 
 let peer = null;
@@ -139,17 +139,20 @@ let hostConnection = null;
 const connections =
     new Map();
 
+const remotePlayers =
+    new Map();
+
 let isHost = false;
 
-let myPeerId = "";
-
 let roomCode = "";
+
+let myPeerId = "";
 
 let playerName = "Jugador";
 
 
 /* =========================================================
-   GAME PLAYER
+   PLAYER
 ========================================================= */
 
 const player = {
@@ -176,11 +179,35 @@ const player = {
 
 
 /* =========================================================
-   OTHER PLAYERS
+   RACE STATE
 ========================================================= */
 
-const remotePlayers =
-    new Map();
+/*
+   MUY IMPORTANTE:
+
+   Todo empieza en false.
+
+   Crear sala:
+   NO cambia esto.
+
+   Unirse:
+   NO cambia esto.
+
+   Solo INICIAR CARRERA cambia esto.
+*/
+
+let gameRunning = false;
+
+let raceStarted = false;
+
+let countdownRunning = false;
+
+let raceStartTime = 0;
+
+let lastFrame =
+    performance.now();
+
+const totalLaps = 3;
 
 
 /* =========================================================
@@ -211,34 +238,7 @@ const track = [
 
 ];
 
-
 const TRACK_WIDTH = 130;
-
-const totalLaps = 3;
-
-
-/* =========================================================
-   GAME STATE
-========================================================= */
-
-let gameRunning = false;
-
-let raceStarted = false;
-
-let raceStartTime = 0;
-
-let lastFrame =
-    performance.now();
-
-
-/*
-   IMPORTANTE:
-
-   Esto evita que el host empiece
-   varias veces.
-*/
-
-let raceStarting = false;
 
 
 /* =========================================================
@@ -255,7 +255,6 @@ window.addEventListener(
         keys[
             event.key.toLowerCase()
         ] = true;
-
 
         if (
             event.key === " " ||
@@ -293,7 +292,6 @@ function randomCode(length = 6) {
 
     let result = "";
 
-
     for (
         let i = 0;
         i < length;
@@ -310,8 +308,8 @@ function randomCode(length = 6) {
 
     }
 
-
     return result;
+
 }
 
 
@@ -324,6 +322,7 @@ function normalizeCode(code) {
             /[^A-Z0-9_-]/g,
             ""
         );
+
 }
 
 
@@ -331,18 +330,6 @@ function setStatus(text) {
 
     connectionStatus.textContent =
         text;
-}
-
-
-function showGame() {
-
-    menu.classList.add(
-        "hidden"
-    );
-
-    gameUI.classList.remove(
-        "hidden"
-    );
 
 }
 
@@ -350,30 +337,22 @@ function showGame() {
 function formatTime(ms) {
 
     const total =
-        Math.max(
-            0,
-            ms
-        );
-
+        Math.max(0, ms);
 
     const minutes =
         Math.floor(
             total / 60000
         );
 
-
     const seconds =
         Math.floor(
-            (total % 60000) /
-            1000
+            (total % 60000) / 1000
         );
-
 
     const milliseconds =
         Math.floor(
             total % 1000
         );
-
 
     return (
         String(minutes)
@@ -393,8 +372,40 @@ function formatTime(ms) {
 }
 
 
+function escapeHTML(text) {
+
+    return String(text)
+
+        .replace(
+            /&/g,
+            "&amp;"
+        )
+
+        .replace(
+            /</g,
+            "&lt;"
+        )
+
+        .replace(
+            />/g,
+            "&gt;"
+        )
+
+        .replace(
+            /"/g,
+            "&quot;"
+        )
+
+        .replace(
+            /'/g,
+            "&#039;"
+        );
+
+}
+
+
 /* =========================================================
-   PEER CREATION
+   PEER
 ========================================================= */
 
 function createPeer(id) {
@@ -436,13 +447,11 @@ createRoomButton.addEventListener(
             playerNameInput.value.trim() ||
             "Jugador";
 
-
         roomCode =
             randomCode(6);
 
-
-        isHost = true;
-
+        isHost =
+            true;
 
         createRoomButton.disabled =
             true;
@@ -450,29 +459,30 @@ createRoomButton.addEventListener(
         joinRoomButton.disabled =
             true;
 
-
         roomCodeElement.textContent =
             roomCode;
-
 
         roomInfo.classList.remove(
             "hidden"
         );
 
+        /*
+           El botón de iniciar
+           sigue oculto hasta
+           que llegue alguien.
+        */
+
+        startRaceButton.classList.add(
+            "hidden"
+        );
 
         waitingText.textContent =
             "Esperando jugadores...";
-
 
         setStatus(
             "Creando sala..."
         );
 
-
-        /*
-           El código de la sala es
-           el ID del host.
-        */
 
         peer =
             createPeer(
@@ -487,22 +497,27 @@ createRoomButton.addEventListener(
                 myPeerId =
                     id;
 
-
                 player.id =
                     id;
-
 
                 player.name =
                     playerName;
 
 
                 /*
-                   AQUÍ NO SE INICIA
-                   LA PARTIDA.
+                   NO:
 
-                   El host solamente
-                   queda esperando.
+                   startLocalGame()
+
+                   NO:
+
+                   raceStarted = true
+
+                   NO:
+
+                   gameRunning = true
                 */
+
 
                 setStatus(
                     "Sala creada. Esperando jugadores..."
@@ -529,16 +544,13 @@ createRoomButton.addEventListener(
             error => {
 
                 console.error(
-                    "Peer error:",
                     error
                 );
-
 
                 setStatus(
                     "Error: " +
                     error.type
                 );
-
 
                 createRoomButton.disabled =
                     false;
@@ -571,108 +583,76 @@ function setupHostConnection(
             );
 
 
-            /*
-               Agregamos el jugador
-               conectado.
-            */
+            remotePlayers.set(
+                connection.peer,
+                {
 
-            if (
-                !remotePlayers.has(
-                    connection.peer
-                )
-            ) {
+                    id:
+                        connection.peer,
 
-                remotePlayers.set(
-                    connection.peer,
-                    {
+                    name:
+                        "Jugador",
 
-                        id:
-                            connection.peer,
+                    x:
+                        width * 0.15,
 
-                        name:
-                            "Jugador",
+                    y:
+                        height * 0.30,
 
-                        x:
-                            width * 0.15,
+                    angle:
+                        0,
 
-                        y:
-                            height * 0.30,
+                    speed:
+                        0,
 
-                        angle:
-                            0,
+                    lap:
+                        1,
 
-                        speed:
-                            0,
+                    checkpoint:
+                        0,
 
-                        lap:
-                            1,
+                    finished:
+                        false
 
-                        checkpoint:
-                            0,
-
-                        finished:
-                            false
-
-                    }
-                );
-
-            }
-
-
-            waitingText.textContent =
-                "Jugador conectado.";
-
-
-            setStatus(
-                "Jugador conectado. Iniciando..."
+                }
             );
-
-
-            /*
-               Le enviamos la información
-               inicial al jugador.
-            */
-
-            connection.send({
-
-                type:
-                    "welcome",
-
-                id:
-                    player.id,
-
-                name:
-                    player.name,
-
-                players:
-                    getAllPlayers()
-
-            });
 
 
             updatePlayerList();
 
 
             /*
-               SOLO AQUÍ se inicia
-               la carrera.
-
-               El host tenía que estar
-               esperando antes.
+               AHORA sí mostramos
+               el botón al host.
             */
 
-            if (!raceStarting &&
-                !gameRunning) {
-
-                raceStarting =
-                    true;
-
-                startLocalGame();
-
-            }
+            startRaceButton.classList.remove(
+                "hidden"
+            );
 
 
-            broadcastState();
+            waitingText.textContent =
+                "Jugador conectado. Puedes iniciar la carrera.";
+
+
+            setStatus(
+                "Jugador conectado."
+            );
+
+
+            connection.send({
+
+                type:
+                    "roomInfo",
+
+                hostName:
+                    player.name
+
+            });
+
+
+            broadcastLobby();
+
 
         }
     );
@@ -699,40 +679,30 @@ function setupHostConnection(
                 connection.peer
             );
 
-
             remotePlayers.delete(
                 connection.peer
             );
-
 
             updatePlayerList();
 
 
             if (
-                connections.size === 0
+                connections.size === 0 &&
+                !raceStarted
             ) {
 
-                setStatus(
-                    "Sala vacía. Esperando jugadores..."
+                startRaceButton.classList.add(
+                    "hidden"
                 );
 
                 waitingText.textContent =
                     "Esperando jugadores...";
 
+                setStatus(
+                    "Sala vacía. Esperando jugadores..."
+                );
+
             }
-
-        }
-    );
-
-
-    connection.on(
-        "error",
-        error => {
-
-            console.error(
-                "Connection error:",
-                error
-            );
 
         }
     );
@@ -773,7 +743,6 @@ joinRoomButton.addEventListener(
         roomCode =
             code;
 
-
         isHost =
             false;
 
@@ -801,10 +770,8 @@ joinRoomButton.addEventListener(
                 myPeerId =
                     id;
 
-
                 player.id =
                     id;
-
 
                 player.name =
                     playerName;
@@ -830,9 +797,16 @@ joinRoomButton.addEventListener(
                     () => {
 
                         setStatus(
-                            "Conectado al host."
+                            "Conectado. Esperando que el host inicie..."
                         );
 
+
+                        /*
+                           IMPORTANTE:
+
+                           NO iniciamos
+                           startLocalGame() aquí.
+                        */
 
                         hostConnection.send({
 
@@ -846,15 +820,6 @@ joinRoomButton.addEventListener(
                                 player.name
 
                         });
-
-
-                        /*
-                           El jugador que entra
-                           sí puede mostrar el
-                           juego al conectarse.
-                        */
-
-                        startLocalGame();
 
                     }
                 );
@@ -881,7 +846,6 @@ joinRoomButton.addEventListener(
                             "El host se desconectó."
                         );
 
-
                         stopGame();
 
                     }
@@ -895,7 +859,6 @@ joinRoomButton.addEventListener(
                         console.error(
                             error
                         );
-
 
                         setStatus(
                             "Error de conexión."
@@ -916,11 +879,9 @@ joinRoomButton.addEventListener(
                     error
                 );
 
-
                 setStatus(
                     "No se pudo encontrar la sala."
                 );
-
 
                 createRoomButton.disabled =
                     false;
@@ -930,6 +891,92 @@ joinRoomButton.addEventListener(
 
             }
         );
+
+    }
+);
+
+
+/* =========================================================
+   START RACE BUTTON
+========================================================= */
+
+startRaceButton.addEventListener(
+    "click",
+    () => {
+
+        /*
+           Solo el host puede
+           iniciar.
+        */
+
+        if (!isHost) {
+
+            return;
+
+        }
+
+
+        /*
+           Necesitamos al menos
+           un jugador adicional.
+        */
+
+        if (
+            connections.size === 0
+        ) {
+
+            setStatus(
+                "Necesitas al menos otro jugador."
+            );
+
+            return;
+
+        }
+
+
+        /*
+           Ocultamos el botón
+           para evitar doble click.
+        */
+
+        startRaceButton.classList.add(
+            "hidden"
+        );
+
+
+        waitingText.textContent =
+            "Carrera iniciando...";
+
+
+        /*
+           Avisamos a todos.
+        */
+
+        connections.forEach(
+            connection => {
+
+                if (
+                    connection.open
+                ) {
+
+                    connection.send({
+
+                        type:
+                            "raceStart"
+
+                    });
+
+                }
+
+            }
+        );
+
+
+        /*
+           El host también inicia.
+        */
+
+        startLocalGame();
 
     }
 );
@@ -969,87 +1016,63 @@ function handleNetworkData(
         }
 
 
-        remotePlayers.set(
-            data.id,
-            {
-
-                id:
-                    data.id,
-
-                name:
-                    data.name ||
-                    "Jugador",
-
-                x:
-                    width * 0.15,
-
-                y:
-                    height * 0.30,
-
-                angle:
-                    0,
-
-                speed:
-                    0,
-
-                lap:
-                    1,
-
-                checkpoint:
-                    0,
-
-                finished:
-                    false
-
-            }
-        );
-
-
-        /*
-           Actualizamos el nombre
-           del jugador.
-        */
-
-        if (
-            connections.has(
+        const existing =
+            remotePlayers.get(
                 data.id
-            )
-        ) {
-
-            const conn =
-                connections.get(
-                    data.id
-                );
+            );
 
 
-            if (
-                conn.open
-            ) {
+        if (existing) {
 
-                conn.send({
+            existing.name =
+                data.name ||
+                "Jugador";
 
-                    type:
-                        "welcome",
+        }
+
+        else {
+
+            remotePlayers.set(
+                data.id,
+                {
 
                     id:
-                        player.id,
+                        data.id,
 
                     name:
-                        player.name,
+                        data.name ||
+                        "Jugador",
 
-                    players:
-                        getAllPlayers()
+                    x:
+                        width * 0.15,
 
-                });
+                    y:
+                        height * 0.30,
 
-            }
+                    angle:
+                        0,
+
+                    speed:
+                        0,
+
+                    lap:
+                        1,
+
+                    checkpoint:
+                        0,
+
+                    finished:
+                        false
+
+                }
+            );
 
         }
 
 
         updatePlayerList();
 
-        broadcastState();
+        broadcastLobby();
 
         return;
 
@@ -1057,48 +1080,43 @@ function handleNetworkData(
 
 
     /* =========================
-       WELCOME
+       ROOM INFO
     ========================== */
 
     if (
-        data.type === "welcome"
+        data.type === "roomInfo"
     ) {
 
+        setStatus(
+            "Esperando que el host inicie..."
+        );
+
+        return;
+
+    }
+
+
+    /* =========================
+       RACE START
+    ========================== */
+
+    if (
+        data.type === "raceStart"
+    ) {
+
+        /*
+           SOLO un mensaje explícito
+           del host puede iniciar
+           la carrera del cliente.
+        */
+
         if (
-            !isHost
+            !gameRunning
         ) {
 
-            if (
-                Array.isArray(
-                    data.players
-                )
-            ) {
-
-                data.players.forEach(
-                    p => {
-
-                        if (
-                            p.id !==
-                            player.id
-                        ) {
-
-                            remotePlayers.set(
-                                p.id,
-                                p
-                            );
-
-                        }
-
-                    }
-                );
-
-            }
-
-
-            updatePlayerList();
+            startLocalGame();
 
         }
-
 
         return;
 
@@ -1114,34 +1132,24 @@ function handleNetworkData(
     ) {
 
         if (
-            data.player
+            data.player &&
+            data.player.id !==
+            player.id
         ) {
 
-            const p =
-                data.player;
+            remotePlayers.set(
+                data.player.id,
+                data.player
+            );
 
 
-            if (
-                p.id !==
-                player.id
-            ) {
-
-                remotePlayers.set(
-                    p.id,
-                    p
-                );
-
-
-                updatePlayerList();
-
-            }
+            updatePlayerList();
 
         }
 
 
         /*
-           El host retransmite
-           el estado a los demás.
+           El host retransmite.
         */
 
         if (
@@ -1166,7 +1174,6 @@ function handleNetworkData(
             );
 
         }
-
 
         return;
 
@@ -1215,6 +1222,48 @@ function handleNetworkData(
         return;
 
     }
+
+}
+
+
+/* =========================================================
+   LOBBY
+========================================================= */
+
+function broadcastLobby() {
+
+    if (!isHost) {
+
+        return;
+
+    }
+
+
+    const players =
+        getAllPlayers();
+
+
+    connections.forEach(
+        connection => {
+
+            if (
+                connection.open
+            ) {
+
+                connection.send({
+
+                    type:
+                        "fullState",
+
+                    players:
+                        players
+
+                });
+
+            }
+
+        }
+    );
 
 }
 
@@ -1291,6 +1340,20 @@ let lastNetworkUpdate = 0;
 
 function sendState() {
 
+    /*
+       NO enviamos movimiento
+       antes de comenzar.
+    */
+
+    if (
+        !raceStarted
+    ) {
+
+        return;
+
+    }
+
+
     const now =
         performance.now();
 
@@ -1324,13 +1387,13 @@ function sendState() {
     if (isHost) {
 
         connections.forEach(
-            conn => {
+            connection => {
 
                 if (
-                    conn.open
+                    connection.open
                 ) {
 
-                    conn.send(
+                    connection.send(
                         packet
                     );
 
@@ -1360,69 +1423,23 @@ function sendState() {
 
 
 /* =========================================================
-   BROADCAST
-========================================================= */
-
-function broadcastState() {
-
-    if (!isHost) {
-
-        return;
-
-    }
-
-
-    const packet = {
-
-        type:
-            "fullState",
-
-        players:
-            getAllPlayers()
-
-    };
-
-
-    connections.forEach(
-        conn => {
-
-            if (
-                conn.open
-            ) {
-
-                conn.send(
-                    packet
-                );
-
-            }
-
-        }
-    );
-
-}
-
-
-/* =========================================================
-   START GAME
+   START LOCAL GAME
 ========================================================= */
 
 function startLocalGame() {
 
     /*
-       Evita iniciar dos veces.
+       Protección absoluta contra
+       doble inicio.
     */
 
-    if (gameRunning) {
+    if (
+        gameRunning
+    ) {
 
         return;
 
     }
-
-
-    showGame();
-
-
-    resetPlayer();
 
 
     gameRunning =
@@ -1433,8 +1450,21 @@ function startLocalGame() {
         false;
 
 
-    raceStarting =
-        true;
+    countdownRunning =
+        false;
+
+
+    resetPlayer();
+
+
+    menu.classList.add(
+        "hidden"
+    );
+
+
+    gameUI.classList.remove(
+        "hidden"
+    );
 
 
     finish.classList.add(
@@ -1448,7 +1478,7 @@ function startLocalGame() {
 
 
 /* =========================================================
-   RESET PLAYER
+   RESET
 ========================================================= */
 
 function resetPlayer() {
@@ -1456,26 +1486,20 @@ function resetPlayer() {
     player.x =
         width * 0.15;
 
-
     player.y =
         height * 0.30;
-
 
     player.angle =
         0;
 
-
     player.speed =
         0;
-
 
     player.lap =
         1;
 
-
     player.checkpoint =
         0;
-
 
     player.finished =
         false;
@@ -1488,6 +1512,23 @@ function resetPlayer() {
 ========================================================= */
 
 function startCountdown() {
+
+    /*
+       Protección.
+    */
+
+    if (
+        countdownRunning
+    ) {
+
+        return;
+
+    }
+
+
+    countdownRunning =
+        true;
+
 
     let number =
         3;
@@ -1513,6 +1554,7 @@ function startCountdown() {
 
                 }
 
+
                 else if (
                     number === 0
                 ) {
@@ -1529,39 +1571,11 @@ function startCountdown() {
                         performance.now();
 
 
-                    raceStarting =
+                    countdownRunning =
                         false;
 
-
-                    /*
-                       Avisamos a los demás
-                       de que la carrera empezó.
-                    */
-
-                    if (isHost) {
-
-                        connections.forEach(
-                            conn => {
-
-                                if (
-                                    conn.open
-                                ) {
-
-                                    conn.send({
-
-                                        type:
-                                            "raceStart"
-
-                                    });
-
-                                }
-
-                            }
-                        );
-
-                    }
-
                 }
+
 
                 else {
 
@@ -1583,7 +1597,7 @@ function startCountdown() {
 
 
 /* =========================================================
-   STOP GAME
+   STOP
 ========================================================= */
 
 function stopGame() {
@@ -1592,6 +1606,9 @@ function stopGame() {
         false;
 
     raceStarted =
+        false;
+
+    countdownRunning =
         false;
 
 }
@@ -1617,29 +1634,21 @@ function updatePlayer(dt) {
         keys["w"] ||
         keys["arrowup"];
 
-
     const brake =
         keys["s"] ||
         keys["arrowdown"];
-
 
     const left =
         keys["a"] ||
         keys["arrowleft"];
 
-
     const right =
         keys["d"] ||
         keys["arrowright"];
 
-
     const drift =
         keys[" "];
 
-
-    /* =========================
-       ACELERACIÓN
-    ========================== */
 
     if (accelerate) {
 
@@ -1651,10 +1660,6 @@ function updatePlayer(dt) {
     }
 
 
-    /* =========================
-       FRENO
-    ========================== */
-
     if (brake) {
 
         player.speed -=
@@ -1664,10 +1669,6 @@ function updatePlayer(dt) {
 
     }
 
-
-    /* =========================
-       FRICCIÓN
-    ========================== */
 
     if (
         !accelerate &&
@@ -1683,10 +1684,6 @@ function updatePlayer(dt) {
     }
 
 
-    /* =========================
-       DRIFT
-    ========================== */
-
     if (drift) {
 
         player.speed *=
@@ -1697,10 +1694,6 @@ function updatePlayer(dt) {
 
     }
 
-
-    /* =========================
-       VELOCIDAD
-    ========================== */
 
     const maxSpeed =
         drift
@@ -1717,10 +1710,6 @@ function updatePlayer(dt) {
             )
         );
 
-
-    /* =========================
-       GIRO
-    ========================== */
 
     if (
         Math.abs(
@@ -1758,10 +1747,6 @@ function updatePlayer(dt) {
     }
 
 
-    /* =========================
-       MOVIMIENTO
-    ========================== */
-
     player.x +=
         Math.cos(
             player.angle
@@ -1779,10 +1764,6 @@ function updatePlayer(dt) {
         dt *
         60;
 
-
-    /* =========================
-       BORDES
-    ========================== */
 
     if (
         player.x < 0
@@ -1830,7 +1811,7 @@ function updatePlayer(dt) {
 
 
 /* =========================================================
-   TRACK POSITION
+   TRACK
 ========================================================= */
 
 function getTrackPosition(index) {
@@ -1857,10 +1838,6 @@ function getTrackPosition(index) {
 }
 
 
-/* =========================================================
-   DISTANCE
-========================================================= */
-
 function distance(a, b) {
 
     return Math.hypot(
@@ -1870,10 +1847,6 @@ function distance(a, b) {
 
 }
 
-
-/* =========================================================
-   CHECKPOINT
-========================================================= */
 
 function checkProgress() {
 
@@ -1891,20 +1864,15 @@ function checkProgress() {
         );
 
 
-    const current = {
-
-        x:
-            player.x,
-
-        y:
-            player.y
-
-    };
-
-
     if (
         distance(
-            current,
+            {
+                x:
+                    player.x,
+
+                y:
+                    player.y
+            },
             next
         ) < 110
     ) {
@@ -2015,27 +1983,12 @@ function calculatePosition() {
 
 function drawTrack() {
 
-    if (
-        track.length <
-        2
-    ) {
-
-        return;
-
-    }
-
-
     ctx.lineJoin =
         "round";
-
 
     ctx.lineCap =
         "round";
 
-
-    /* =========================
-       GRASS
-    ========================== */
 
     ctx.fillStyle =
         "#28752c";
@@ -2048,10 +2001,6 @@ function drawTrack() {
         height
     );
 
-
-    /* =========================
-       CARRETERA
-    ========================== */
 
     ctx.beginPath();
 
@@ -2109,10 +2058,6 @@ function drawTrack() {
     ctx.stroke();
 
 
-    /* =========================
-       LÍNEA CENTRAL
-    ========================== */
-
     ctx.setLineDash([
         20,
         20
@@ -2133,9 +2078,7 @@ function drawTrack() {
     ctx.setLineDash([]);
 
 
-    /* =========================
-       META
-    ========================== */
+    /* META */
 
     const start =
         getTrackPosition(0);
@@ -2234,8 +2177,6 @@ function drawCar(
     );
 
 
-    /* SOMBRA */
-
     ctx.fillStyle =
         "rgba(0,0,0,0.35)";
 
@@ -2247,8 +2188,6 @@ function drawCar(
         20
     );
 
-
-    /* CUERPO */
 
     ctx.fillStyle =
         local
@@ -2264,8 +2203,6 @@ function drawCar(
     );
 
 
-    /* CAPÓ */
-
     ctx.fillStyle =
         local
             ? "#ff5555"
@@ -2280,8 +2217,6 @@ function drawCar(
     );
 
 
-    /* VENTANA */
-
     ctx.fillStyle =
         "#111";
 
@@ -2293,8 +2228,6 @@ function drawCar(
         14
     );
 
-
-    /* RUEDAS */
 
     ctx.fillStyle =
         "#080808";
@@ -2335,26 +2268,20 @@ function drawCar(
     ctx.restore();
 
 
-    /* NOMBRE */
-
     ctx.save();
 
 
     ctx.font =
         "12px Arial";
 
-
     ctx.textAlign =
         "center";
-
 
     ctx.fillStyle =
         "white";
 
-
     ctx.shadowColor =
         "black";
-
 
     ctx.shadowBlur =
         4;
@@ -2373,7 +2300,7 @@ function drawCar(
 
 
 /* =========================================================
-   MINIMAPA
+   MINIMAP
 ========================================================= */
 
 function drawMinimap() {
@@ -2463,8 +2390,6 @@ function drawMinimap() {
     mapCtx.stroke();
 
 
-    /* JUGADOR */
-
     mapCtx.fillStyle =
         "#e53935";
 
@@ -2473,6 +2398,7 @@ function drawMinimap() {
 
 
     mapCtx.arc(
+
         player.x /
             width *
             mapCanvas.width,
@@ -2486,13 +2412,12 @@ function drawMinimap() {
         0,
 
         Math.PI * 2
+
     );
 
 
     mapCtx.fill();
 
-
-    /* OTROS */
 
     remotePlayers.forEach(
         p => {
@@ -2505,6 +2430,7 @@ function drawMinimap() {
 
 
             mapCtx.arc(
+
                 p.x /
                     width *
                     mapCanvas.width,
@@ -2518,6 +2444,7 @@ function drawMinimap() {
                 0,
 
                 Math.PI * 2
+
             );
 
 
@@ -2539,23 +2466,30 @@ function updatePlayerList() {
         "";
 
 
-    const localEntry =
+    const local =
         document.createElement(
             "div"
         );
 
 
-    localEntry.className =
+    local.className =
         "player-entry";
 
 
-    localEntry.innerHTML =
-        `<span>${escapeHTML(player.name)}</span>
-         <span>🏎️</span>`;
+    local.innerHTML =
+        `
+        <span>
+            ${escapeHTML(player.name)}
+        </span>
+
+        <span>
+            🏎️
+        </span>
+        `;
 
 
     playersContainer.appendChild(
-        localEntry
+        local
     );
 
 
@@ -2573,8 +2507,15 @@ function updatePlayerList() {
 
 
             entry.innerHTML =
-                `<span>${escapeHTML(p.name)}</span>
-                 <span>🏎️</span>`;
+                `
+                <span>
+                    ${escapeHTML(p.name)}
+                </span>
+
+                <span>
+                    🏎️
+                </span>
+                `;
 
 
             playersContainer.appendChild(
@@ -2583,135 +2524,6 @@ function updatePlayerList() {
 
         }
     );
-
-}
-
-
-function escapeHTML(text) {
-
-    return String(text)
-
-        .replace(
-            /&/g,
-            "&amp;"
-        )
-
-        .replace(
-            /</g,
-            "&lt;"
-        )
-
-        .replace(
-            />/g,
-            "&gt;"
-        )
-
-        .replace(
-            /"/g,
-            "&quot;"
-        )
-
-        .replace(
-            /'/g,
-            "&#039;"
-        );
-
-}
-
-
-/* =========================================================
-   GAME LOOP
-========================================================= */
-
-function gameLoop(now) {
-
-    const dt =
-        Math.min(
-            0.05,
-            (
-                now -
-                lastFrame
-            ) /
-            1000
-        );
-
-
-    lastFrame =
-        now;
-
-
-    if (
-        gameRunning
-    ) {
-
-        updatePlayer(
-            dt
-        );
-
-
-        sendState();
-
-
-        draw();
-
-
-        updateUI();
-
-    }
-
-
-    requestAnimationFrame(
-        gameLoop
-    );
-
-}
-
-
-/* =========================================================
-   DRAW
-========================================================= */
-
-function draw() {
-
-    ctx.clearRect(
-        0,
-        0,
-        width,
-        height
-    );
-
-
-    drawTrack();
-
-
-    /*
-       Otros jugadores
-       primero.
-    */
-
-    remotePlayers.forEach(
-        p => {
-
-            drawCar(
-                p,
-                false
-            );
-
-        }
-    );
-
-
-    /*
-       Nuestro carro encima.
-    */
-
-    drawCar(
-        player,
-        true
-    );
-
-
-    drawMinimap();
 
 }
 
@@ -2764,7 +2576,7 @@ function updateUI() {
 
 
 /* =========================================================
-   COPY CODE
+   COPY
 ========================================================= */
 
 copyRoomButton.addEventListener(
@@ -2827,8 +2639,17 @@ restartButton.addEventListener(
             false;
 
 
-        raceStarting =
-            true;
+        countdownRunning =
+            false;
+
+
+        if (isHost) {
+
+            startRaceButton.classList.remove(
+                "hidden"
+            );
+
+        }
 
 
         startCountdown();
@@ -2838,11 +2659,102 @@ restartButton.addEventListener(
 
 
 /* =========================================================
-   INITIALIZE
+   DRAW
+========================================================= */
+
+function draw() {
+
+    ctx.clearRect(
+        0,
+        0,
+        width,
+        height
+    );
+
+
+    drawTrack();
+
+
+    remotePlayers.forEach(
+        p => {
+
+            drawCar(
+                p,
+                false
+            );
+
+        }
+    );
+
+
+    drawCar(
+        player,
+        true
+    );
+
+
+    drawMinimap();
+
+}
+
+
+/* =========================================================
+   GAME LOOP
+========================================================= */
+
+function gameLoop(now) {
+
+    const dt =
+        Math.min(
+            0.05,
+            (
+                now -
+                lastFrame
+            ) /
+            1000
+        );
+
+
+    lastFrame =
+        now;
+
+
+    /*
+       Esto NO inicia la partida.
+
+       Solo actualiza si
+       gameRunning ya es true.
+    */
+
+    if (
+        gameRunning
+    ) {
+
+        updatePlayer(
+            dt
+        );
+
+        sendState();
+
+        draw();
+
+        updateUI();
+
+    }
+
+
+    requestAnimationFrame(
+        gameLoop
+    );
+
+}
+
+
+/* =========================================================
+   INITIAL
 ========================================================= */
 
 updatePlayerList();
-
 
 requestAnimationFrame(
     gameLoop
