@@ -1,6 +1,7 @@
 /* =========================================================
    LAKY RACING
-   WebRTC / PeerJS Multiplayer
+   MULTIPLAYER P2P
+   PeerJS + WebRTC
 ========================================================= */
 
 
@@ -8,8 +9,11 @@
    DOM
 ========================================================= */
 
-const menu = document.getElementById("menu");
-const gameUI = document.getElementById("gameUI");
+const menu =
+    document.getElementById("menu");
+
+const gameUI =
+    document.getElementById("gameUI");
 
 const createRoomButton =
     document.getElementById("createRoomButton");
@@ -28,6 +32,9 @@ const roomInfo =
 
 const roomCodeElement =
     document.getElementById("roomCode");
+
+const waitingText =
+    document.getElementById("waitingText");
 
 const connectionStatus =
     document.getElementById("connectionStatus");
@@ -82,35 +89,55 @@ const restartButton =
    CANVAS
 ========================================================= */
 
-let width = window.innerWidth;
-let height = window.innerHeight;
+let width =
+    window.innerWidth;
+
+let height =
+    window.innerHeight;
+
 
 function resizeCanvas() {
 
-    width = window.innerWidth;
-    height = window.innerHeight;
+    width =
+        window.innerWidth;
 
-    canvas.width = width;
-    canvas.height = height;
+    height =
+        window.innerHeight;
 
-    mapCanvas.width = 164;
-    mapCanvas.height = 114;
+
+    canvas.width =
+        width;
+
+    canvas.height =
+        height;
+
+
+    mapCanvas.width =
+        164;
+
+    mapCanvas.height =
+        114;
 }
 
-window.addEventListener("resize", resizeCanvas);
+
+window.addEventListener(
+    "resize",
+    resizeCanvas
+);
 
 resizeCanvas();
 
 
 /* =========================================================
-   PEERJS
+   PEER
 ========================================================= */
 
 let peer = null;
 
 let hostConnection = null;
 
-const connections = new Map();
+const connections =
+    new Map();
 
 let isHost = false;
 
@@ -122,7 +149,7 @@ let playerName = "Jugador";
 
 
 /* =========================================================
-   PLAYER
+   GAME PLAYER
 ========================================================= */
 
 const player = {
@@ -149,10 +176,11 @@ const player = {
 
 
 /* =========================================================
-   REMOTE PLAYERS
+   OTHER PLAYERS
 ========================================================= */
 
-const remotePlayers = new Map();
+const remotePlayers =
+    new Map();
 
 
 /* =========================================================
@@ -186,6 +214,8 @@ const track = [
 
 const TRACK_WIDTH = 130;
 
+const totalLaps = 3;
+
 
 /* =========================================================
    GAME STATE
@@ -197,9 +227,18 @@ let raceStarted = false;
 
 let raceStartTime = 0;
 
-let lastFrame = performance.now();
+let lastFrame =
+    performance.now();
 
-let totalLaps = 3;
+
+/*
+   IMPORTANTE:
+
+   Esto evita que el host empiece
+   varias veces.
+*/
+
+let raceStarting = false;
 
 
 /* =========================================================
@@ -208,24 +247,39 @@ let totalLaps = 3;
 
 const keys = {};
 
-window.addEventListener("keydown", event => {
 
-    keys[event.key.toLowerCase()] = true;
+window.addEventListener(
+    "keydown",
+    event => {
 
-    if (
-        event.key === " " ||
-        event.key.startsWith("Arrow")
-    ) {
-        event.preventDefault();
+        keys[
+            event.key.toLowerCase()
+        ] = true;
+
+
+        if (
+            event.key === " " ||
+            event.key.startsWith("Arrow")
+        ) {
+
+            event.preventDefault();
+
+        }
+
     }
+);
 
-});
 
-window.addEventListener("keyup", event => {
+window.addEventListener(
+    "keyup",
+    event => {
 
-    keys[event.key.toLowerCase()] = false;
+        keys[
+            event.key.toLowerCase()
+        ] = false;
 
-});
+    }
+);
 
 
 /* =========================================================
@@ -239,15 +293,25 @@ function randomCode(length = 6) {
 
     let result = "";
 
-    for (let i = 0; i < length; i++) {
+
+    for (
+        let i = 0;
+        i < length;
+        i++
+    ) {
 
         result +=
-            chars[Math.floor(Math.random() * chars.length)];
+            chars[
+                Math.floor(
+                    Math.random() *
+                    chars.length
+                )
+            ];
 
     }
 
-    return result;
 
+    return result;
 }
 
 
@@ -256,23 +320,29 @@ function normalizeCode(code) {
     return code
         .trim()
         .toUpperCase()
-        .replace(/[^A-Z0-9_-]/g, "");
-
+        .replace(
+            /[^A-Z0-9_-]/g,
+            ""
+        );
 }
 
 
 function setStatus(text) {
 
-    connectionStatus.textContent = text;
-
+    connectionStatus.textContent =
+        text;
 }
 
 
 function showGame() {
 
-    menu.classList.add("hidden");
+    menu.classList.add(
+        "hidden"
+    );
 
-    gameUI.classList.remove("hidden");
+    gameUI.classList.remove(
+        "hidden"
+    );
 
 }
 
@@ -280,23 +350,44 @@ function showGame() {
 function formatTime(ms) {
 
     const total =
-        Math.max(0, ms);
+        Math.max(
+            0,
+            ms
+        );
+
 
     const minutes =
-        Math.floor(total / 60000);
+        Math.floor(
+            total / 60000
+        );
+
 
     const seconds =
-        Math.floor((total % 60000) / 1000);
+        Math.floor(
+            (total % 60000) /
+            1000
+        );
+
 
     const milliseconds =
-        Math.floor(total % 1000);
+        Math.floor(
+            total % 1000
+        );
+
 
     return (
-        String(minutes).padStart(2, "0") +
-        ":" +
-        String(seconds).padStart(2, "0") +
-        "." +
-        String(milliseconds).padStart(3, "0")
+        String(minutes)
+            .padStart(2, "0")
+        +
+        ":"
+        +
+        String(seconds)
+            .padStart(2, "0")
+        +
+        "."
+        +
+        String(milliseconds)
+            .padStart(3, "0")
     );
 
 }
@@ -308,24 +399,27 @@ function formatTime(ms) {
 
 function createPeer(id) {
 
-    return new Peer(id, {
+    return new Peer(
+        id,
+        {
 
-        debug: 1,
+            debug: 1,
 
-        config: {
+            config: {
 
-            iceServers: [
+                iceServers: [
 
-                {
-                    urls:
-                        "stun:stun.l.google.com:19302"
-                }
+                    {
+                        urls:
+                            "stun:stun.l.google.com:19302"
+                    }
 
-            ]
+                ]
+
+            }
 
         }
-
-    });
+    );
 
 }
 
@@ -334,149 +428,314 @@ function createPeer(id) {
    CREATE ROOM
 ========================================================= */
 
-createRoomButton.addEventListener("click", () => {
+createRoomButton.addEventListener(
+    "click",
+    () => {
 
-    playerName =
-        playerNameInput.value.trim() ||
-        "Jugador";
-
-    roomCode =
-        randomCode(6);
-
-    isHost = true;
-
-    createRoomButton.disabled = true;
-
-    joinRoomButton.disabled = true;
-
-    roomCodeElement.textContent =
-        roomCode;
-
-    roomInfo.classList.remove("hidden");
-
-    setStatus("Creando sala...");
+        playerName =
+            playerNameInput.value.trim() ||
+            "Jugador";
 
 
-    /*
-       El código de sala también funciona
-       como ID del host.
-    */
-
-    peer =
-        createPeer("laky-" + roomCode);
+        roomCode =
+            randomCode(6);
 
 
-    peer.on("open", id => {
+        isHost = true;
 
-        myPeerId = id;
 
-        player.id = id;
+        createRoomButton.disabled =
+            true;
 
-        player.name = playerName;
+        joinRoomButton.disabled =
+            true;
 
-        setStatus(
-            "Sala creada. Esperando jugadores..."
+
+        roomCodeElement.textContent =
+            roomCode;
+
+
+        roomInfo.classList.remove(
+            "hidden"
         );
 
-        startLocalGame();
 
-    });
+        waitingText.textContent =
+            "Esperando jugadores...";
 
-
-    peer.on("connection", connection => {
-
-        setupHostConnection(connection);
-
-    });
-
-
-    peer.on("error", error => {
-
-        console.error(error);
 
         setStatus(
-            "Error: " + error.type
+            "Creando sala..."
         );
 
-        createRoomButton.disabled = false;
 
-        joinRoomButton.disabled = false;
+        /*
+           El código de la sala es
+           el ID del host.
+        */
 
-    });
+        peer =
+            createPeer(
+                "laky-" + roomCode
+            );
 
-});
+
+        peer.on(
+            "open",
+            id => {
+
+                myPeerId =
+                    id;
+
+
+                player.id =
+                    id;
+
+
+                player.name =
+                    playerName;
+
+
+                /*
+                   AQUÍ NO SE INICIA
+                   LA PARTIDA.
+
+                   El host solamente
+                   queda esperando.
+                */
+
+                setStatus(
+                    "Sala creada. Esperando jugadores..."
+                );
+
+            }
+        );
+
+
+        peer.on(
+            "connection",
+            connection => {
+
+                setupHostConnection(
+                    connection
+                );
+
+            }
+        );
+
+
+        peer.on(
+            "error",
+            error => {
+
+                console.error(
+                    "Peer error:",
+                    error
+                );
+
+
+                setStatus(
+                    "Error: " +
+                    error.type
+                );
+
+
+                createRoomButton.disabled =
+                    false;
+
+                joinRoomButton.disabled =
+                    false;
+
+            }
+        );
+
+    }
+);
 
 
 /* =========================================================
    HOST CONNECTION
 ========================================================= */
 
-function setupHostConnection(connection) {
+function setupHostConnection(
+    connection
+) {
 
-    connection.on("open", () => {
+    connection.on(
+        "open",
+        () => {
 
-        connections.set(
-            connection.peer,
-            connection
-        );
-
-        setStatus(
-            "Jugador conectado"
-        );
-
-
-        connection.send({
-
-            type: "welcome",
-
-            id: player.id,
-
-            host: true,
-
-            players:
-                getAllPlayers()
-
-        });
+            connections.set(
+                connection.peer,
+                connection
+            );
 
 
-        broadcastState();
+            /*
+               Agregamos el jugador
+               conectado.
+            */
 
-    });
+            if (
+                !remotePlayers.has(
+                    connection.peer
+                )
+            ) {
+
+                remotePlayers.set(
+                    connection.peer,
+                    {
+
+                        id:
+                            connection.peer,
+
+                        name:
+                            "Jugador",
+
+                        x:
+                            width * 0.15,
+
+                        y:
+                            height * 0.30,
+
+                        angle:
+                            0,
+
+                        speed:
+                            0,
+
+                        lap:
+                            1,
+
+                        checkpoint:
+                            0,
+
+                        finished:
+                            false
+
+                    }
+                );
+
+            }
 
 
-    connection.on("data", data => {
-
-        handleNetworkData(
-            data,
-            connection
-        );
-
-    });
+            waitingText.textContent =
+                "Jugador conectado.";
 
 
-    connection.on("close", () => {
-
-        connections.delete(
-            connection.peer
-        );
-
-        remotePlayers.delete(
-            connection.peer
-        );
-
-        updatePlayerList();
-
-    });
+            setStatus(
+                "Jugador conectado. Iniciando..."
+            );
 
 
-    connection.on("error", error => {
+            /*
+               Le enviamos la información
+               inicial al jugador.
+            */
 
-        console.error(
-            "Connection error:",
-            error
-        );
+            connection.send({
 
-    });
+                type:
+                    "welcome",
+
+                id:
+                    player.id,
+
+                name:
+                    player.name,
+
+                players:
+                    getAllPlayers()
+
+            });
+
+
+            updatePlayerList();
+
+
+            /*
+               SOLO AQUÍ se inicia
+               la carrera.
+
+               El host tenía que estar
+               esperando antes.
+            */
+
+            if (!raceStarting &&
+                !gameRunning) {
+
+                raceStarting =
+                    true;
+
+                startLocalGame();
+
+            }
+
+
+            broadcastState();
+
+        }
+    );
+
+
+    connection.on(
+        "data",
+        data => {
+
+            handleNetworkData(
+                data,
+                connection
+            );
+
+        }
+    );
+
+
+    connection.on(
+        "close",
+        () => {
+
+            connections.delete(
+                connection.peer
+            );
+
+
+            remotePlayers.delete(
+                connection.peer
+            );
+
+
+            updatePlayerList();
+
+
+            if (
+                connections.size === 0
+            ) {
+
+                setStatus(
+                    "Sala vacía. Esperando jugadores..."
+                );
+
+                waitingText.textContent =
+                    "Esperando jugadores...";
+
+            }
+
+        }
+    );
+
+
+    connection.on(
+        "error",
+        error => {
+
+            console.error(
+                "Connection error:",
+                error
+            );
+
+        }
+    );
 
 }
 
@@ -485,159 +744,228 @@ function setupHostConnection(connection) {
    JOIN ROOM
 ========================================================= */
 
-joinRoomButton.addEventListener("click", () => {
+joinRoomButton.addEventListener(
+    "click",
+    () => {
 
-    const code =
-        normalizeCode(roomInput.value);
+        const code =
+            normalizeCode(
+                roomInput.value
+            );
 
-    if (!code) {
+
+        if (!code) {
+
+            setStatus(
+                "Escribe un código."
+            );
+
+            return;
+
+        }
+
+
+        playerName =
+            playerNameInput.value.trim() ||
+            "Jugador";
+
+
+        roomCode =
+            code;
+
+
+        isHost =
+            false;
+
+
+        createRoomButton.disabled =
+            true;
+
+        joinRoomButton.disabled =
+            true;
+
 
         setStatus(
-            "Escribe un código."
+            "Conectando a la sala..."
         );
 
-        return;
+
+        peer =
+            createPeer();
+
+
+        peer.on(
+            "open",
+            id => {
+
+                myPeerId =
+                    id;
+
+
+                player.id =
+                    id;
+
+
+                player.name =
+                    playerName;
+
+
+                const hostId =
+                    "laky-" +
+                    roomCode;
+
+
+                hostConnection =
+                    peer.connect(
+                        hostId,
+                        {
+                            reliable:
+                                true
+                        }
+                    );
+
+
+                hostConnection.on(
+                    "open",
+                    () => {
+
+                        setStatus(
+                            "Conectado al host."
+                        );
+
+
+                        hostConnection.send({
+
+                            type:
+                                "join",
+
+                            id:
+                                player.id,
+
+                            name:
+                                player.name
+
+                        });
+
+
+                        /*
+                           El jugador que entra
+                           sí puede mostrar el
+                           juego al conectarse.
+                        */
+
+                        startLocalGame();
+
+                    }
+                );
+
+
+                hostConnection.on(
+                    "data",
+                    data => {
+
+                        handleNetworkData(
+                            data,
+                            hostConnection
+                        );
+
+                    }
+                );
+
+
+                hostConnection.on(
+                    "close",
+                    () => {
+
+                        setStatus(
+                            "El host se desconectó."
+                        );
+
+
+                        stopGame();
+
+                    }
+                );
+
+
+                hostConnection.on(
+                    "error",
+                    error => {
+
+                        console.error(
+                            error
+                        );
+
+
+                        setStatus(
+                            "Error de conexión."
+                        );
+
+                    }
+                );
+
+            }
+        );
+
+
+        peer.on(
+            "error",
+            error => {
+
+                console.error(
+                    error
+                );
+
+
+                setStatus(
+                    "No se pudo encontrar la sala."
+                );
+
+
+                createRoomButton.disabled =
+                    false;
+
+                joinRoomButton.disabled =
+                    false;
+
+            }
+        );
 
     }
-
-
-    playerName =
-        playerNameInput.value.trim() ||
-        "Jugador";
-
-
-    roomCode = code;
-
-    isHost = false;
-
-    createRoomButton.disabled = true;
-
-    joinRoomButton.disabled = true;
-
-    setStatus(
-        "Conectando a la sala..."
-    );
-
-
-    peer =
-        createPeer();
-
-
-    peer.on("open", id => {
-
-        myPeerId = id;
-
-        player.id = id;
-
-        player.name = playerName;
-
-
-        const hostId =
-            "laky-" + roomCode;
-
-
-        hostConnection =
-            peer.connect(
-                hostId,
-                {
-                    reliable: true
-                }
-            );
-
-
-        hostConnection.on("open", () => {
-
-            setStatus(
-                "Conectado al host."
-            );
-
-
-            hostConnection.send({
-
-                type: "join",
-
-                id: player.id,
-
-                name: player.name
-
-            });
-
-
-            startLocalGame();
-
-        });
-
-
-        hostConnection.on("data", data => {
-
-            handleNetworkData(
-                data,
-                hostConnection
-            );
-
-        });
-
-
-        hostConnection.on("close", () => {
-
-            setStatus(
-                "El host se desconectó."
-            );
-
-            stopGame();
-
-        });
-
-
-        hostConnection.on("error", error => {
-
-            console.error(error);
-
-            setStatus(
-                "Error de conexión."
-            );
-
-        });
-
-    });
-
-
-    peer.on("error", error => {
-
-        console.error(error);
-
-        setStatus(
-            "No se pudo encontrar la sala."
-        );
-
-        createRoomButton.disabled = false;
-
-        joinRoomButton.disabled = false;
-
-    });
-
-});
+);
 
 
 /* =========================================================
    NETWORK DATA
 ========================================================= */
 
-function handleNetworkData(data, connection) {
+function handleNetworkData(
+    data,
+    connection
+) {
 
-    if (!data || !data.type) {
+    if (
+        !data ||
+        !data.type
+    ) {
+
         return;
+
     }
 
 
-    /* =====================
+    /* =========================
        JOIN
-    ===================== */
+    ========================== */
 
-    if (data.type === "join") {
+    if (
+        data.type === "join"
+    ) {
 
         if (!isHost) {
+
             return;
+
         }
 
 
@@ -645,56 +973,228 @@ function handleNetworkData(data, connection) {
             data.id,
             {
 
-                id: data.id,
+                id:
+                    data.id,
 
                 name:
-                    data.name || "Jugador",
+                    data.name ||
+                    "Jugador",
 
-                x: 0,
+                x:
+                    width * 0.15,
 
-                y: 0,
+                y:
+                    height * 0.30,
 
-                angle: 0,
+                angle:
+                    0,
 
-                speed: 0,
+                speed:
+                    0,
 
-                lap: 1,
+                lap:
+                    1,
 
-                checkpoint: 0,
+                checkpoint:
+                    0,
 
-                finished: false
+                finished:
+                    false
 
             }
         );
 
 
-        updatePlayerList();
-
-
         /*
-           Mandamos la posición inicial
-           a todos.
+           Actualizamos el nombre
+           del jugador.
         */
+
+        if (
+            connections.has(
+                data.id
+            )
+        ) {
+
+            const conn =
+                connections.get(
+                    data.id
+                );
+
+
+            if (
+                conn.open
+            ) {
+
+                conn.send({
+
+                    type:
+                        "welcome",
+
+                    id:
+                        player.id,
+
+                    name:
+                        player.name,
+
+                    players:
+                        getAllPlayers()
+
+                });
+
+            }
+
+        }
+
+
+        updatePlayerList();
 
         broadcastState();
 
         return;
+
     }
 
 
-    /* =====================
+    /* =========================
        WELCOME
-    ===================== */
+    ========================== */
 
-    if (data.type === "welcome") {
+    if (
+        data.type === "welcome"
+    ) {
 
-        if (!isHost) {
+        if (
+            !isHost
+        ) {
 
-            if (Array.isArray(data.players)) {
+            if (
+                Array.isArray(
+                    data.players
+                )
+            ) {
 
-                data.players.forEach(p => {
+                data.players.forEach(
+                    p => {
 
-                    if (p.id !== player.id) {
+                        if (
+                            p.id !==
+                            player.id
+                        ) {
+
+                            remotePlayers.set(
+                                p.id,
+                                p
+                            );
+
+                        }
+
+                    }
+                );
+
+            }
+
+
+            updatePlayerList();
+
+        }
+
+
+        return;
+
+    }
+
+
+    /* =========================
+       STATE
+    ========================== */
+
+    if (
+        data.type === "state"
+    ) {
+
+        if (
+            data.player
+        ) {
+
+            const p =
+                data.player;
+
+
+            if (
+                p.id !==
+                player.id
+            ) {
+
+                remotePlayers.set(
+                    p.id,
+                    p
+                );
+
+
+                updatePlayerList();
+
+            }
+
+        }
+
+
+        /*
+           El host retransmite
+           el estado a los demás.
+        */
+
+        if (
+            isHost
+        ) {
+
+            connections.forEach(
+                conn => {
+
+                    if (
+                        conn.open &&
+                        conn !== connection
+                    ) {
+
+                        conn.send(
+                            data
+                        );
+
+                    }
+
+                }
+            );
+
+        }
+
+
+        return;
+
+    }
+
+
+    /* =========================
+       FULL STATE
+    ========================== */
+
+    if (
+        data.type ===
+        "fullState"
+    ) {
+
+        if (
+            Array.isArray(
+                data.players
+            )
+        ) {
+
+            data.players.forEach(
+                p => {
+
+                    if (
+                        p.id !==
+                        player.id
+                    ) {
 
                         remotePlayers.set(
                             p.id,
@@ -703,72 +1203,17 @@ function handleNetworkData(data, connection) {
 
                     }
 
-                });
-
-            }
-
-            updatePlayerList();
-
-        }
-
-        return;
-    }
-
-
-    /* =====================
-       STATE
-    ===================== */
-
-    if (data.type === "state") {
-
-        if (data.player) {
-
-            const p =
-                data.player;
-
-            if (p.id !== player.id) {
-
-                remotePlayers.set(
-                    p.id,
-                    p
-                );
-
-                updatePlayerList();
-
-            }
-
-        }
-
-        return;
-    }
-
-
-    /* =====================
-       FULL STATE
-    ===================== */
-
-    if (data.type === "fullState") {
-
-        if (Array.isArray(data.players)) {
-
-            data.players.forEach(p => {
-
-                if (p.id !== player.id) {
-
-                    remotePlayers.set(
-                        p.id,
-                        p
-                    );
-
                 }
+            );
 
-            });
 
             updatePlayerList();
 
         }
 
+
         return;
+
     }
 
 }
@@ -782,19 +1227,26 @@ function getPlayerData() {
 
     return {
 
-        id: player.id,
+        id:
+            player.id,
 
-        name: player.name,
+        name:
+            player.name,
 
-        x: player.x,
+        x:
+            player.x,
 
-        y: player.y,
+        y:
+            player.y,
 
-        angle: player.angle,
+        angle:
+            player.angle,
 
-        speed: player.speed,
+        speed:
+            player.speed,
 
-        lap: player.lap,
+        lap:
+            player.lap,
 
         checkpoint:
             player.checkpoint,
@@ -810,14 +1262,20 @@ function getPlayerData() {
 function getAllPlayers() {
 
     const list = [
+
         getPlayerData()
+
     ];
 
-    remotePlayers.forEach(p => {
 
-        list.push(p);
+    remotePlayers.forEach(
+        p => {
 
-    });
+            list.push(p);
+
+        }
+    );
+
 
     return list;
 
@@ -830,26 +1288,32 @@ function getAllPlayers() {
 
 let lastNetworkUpdate = 0;
 
+
 function sendState() {
 
     const now =
         performance.now();
 
 
-    /*
-       20 actualizaciones por segundo.
-    */
+    if (
+        now -
+        lastNetworkUpdate <
+        50
+    ) {
 
-    if (now - lastNetworkUpdate < 50) {
         return;
+
     }
 
-    lastNetworkUpdate = now;
+
+    lastNetworkUpdate =
+        now;
 
 
     const packet = {
 
-        type: "state",
+        type:
+            "state",
 
         player:
             getPlayerData()
@@ -859,24 +1323,34 @@ function sendState() {
 
     if (isHost) {
 
-        connections.forEach(conn => {
+        connections.forEach(
+            conn => {
 
-            if (conn.open) {
+                if (
+                    conn.open
+                ) {
 
-                conn.send(packet);
+                    conn.send(
+                        packet
+                    );
+
+                }
 
             }
+        );
 
-        });
+    }
 
-    } else {
+    else {
 
         if (
             hostConnection &&
             hostConnection.open
         ) {
 
-            hostConnection.send(packet);
+            hostConnection.send(
+                packet
+            );
 
         }
 
@@ -892,13 +1366,16 @@ function sendState() {
 function broadcastState() {
 
     if (!isHost) {
+
         return;
+
     }
 
 
     const packet = {
 
-        type: "fullState",
+        type:
+            "fullState",
 
         players:
             getAllPlayers()
@@ -906,15 +1383,21 @@ function broadcastState() {
     };
 
 
-    connections.forEach(conn => {
+    connections.forEach(
+        conn => {
 
-        if (conn.open) {
+            if (
+                conn.open
+            ) {
 
-            conn.send(packet);
+                conn.send(
+                    packet
+                );
+
+            }
 
         }
-
-    });
+    );
 
 }
 
@@ -925,15 +1408,39 @@ function broadcastState() {
 
 function startLocalGame() {
 
+    /*
+       Evita iniciar dos veces.
+    */
+
+    if (gameRunning) {
+
+        return;
+
+    }
+
+
     showGame();
+
 
     resetPlayer();
 
-    gameRunning = true;
 
-    raceStarted = false;
+    gameRunning =
+        true;
 
-    finish.classList.add("hidden");
+
+    raceStarted =
+        false;
+
+
+    raceStarting =
+        true;
+
+
+    finish.classList.add(
+        "hidden"
+    );
+
 
     startCountdown();
 
@@ -949,20 +1456,26 @@ function resetPlayer() {
     player.x =
         width * 0.15;
 
+
     player.y =
         height * 0.30;
+
 
     player.angle =
         0;
 
+
     player.speed =
         0;
+
 
     player.lap =
         1;
 
+
     player.checkpoint =
         0;
+
 
     player.finished =
         false;
@@ -976,47 +1489,95 @@ function resetPlayer() {
 
 function startCountdown() {
 
-    let number = 3;
+    let number =
+        3;
+
 
     countdownElement.textContent =
         number;
 
 
     const interval =
-        setInterval(() => {
+        setInterval(
+            () => {
 
-            number--;
+                number--;
 
 
-            if (number > 0) {
+                if (
+                    number > 0
+                ) {
 
-                countdownElement.textContent =
-                    number;
+                    countdownElement.textContent =
+                        number;
 
-            }
+                }
 
-            else if (number === 0) {
+                else if (
+                    number === 0
+                ) {
 
-                countdownElement.textContent =
-                    "¡YA!";
+                    countdownElement.textContent =
+                        "¡YA!";
 
-                raceStarted = true;
 
-                raceStartTime =
-                    performance.now();
+                    raceStarted =
+                        true;
 
-            }
 
-            else {
+                    raceStartTime =
+                        performance.now();
 
-                clearInterval(interval);
 
-                countdownElement.textContent =
-                    "";
+                    raceStarting =
+                        false;
 
-            }
 
-        }, 1000);
+                    /*
+                       Avisamos a los demás
+                       de que la carrera empezó.
+                    */
+
+                    if (isHost) {
+
+                        connections.forEach(
+                            conn => {
+
+                                if (
+                                    conn.open
+                                ) {
+
+                                    conn.send({
+
+                                        type:
+                                            "raceStart"
+
+                                    });
+
+                                }
+
+                            }
+                        );
+
+                    }
+
+                }
+
+                else {
+
+                    clearInterval(
+                        interval
+                    );
+
+
+                    countdownElement.textContent =
+                        "";
+
+                }
+
+            },
+            1000
+        );
 
 }
 
@@ -1027,7 +1588,11 @@ function startCountdown() {
 
 function stopGame() {
 
-    gameRunning = false;
+    gameRunning =
+        false;
+
+    raceStarted =
+        false;
 
 }
 
@@ -1038,8 +1603,13 @@ function stopGame() {
 
 function updatePlayer(dt) {
 
-    if (!raceStarted || player.finished) {
+    if (
+        !raceStarted ||
+        player.finished
+    ) {
+
         return;
+
     }
 
 
@@ -1047,72 +1617,95 @@ function updatePlayer(dt) {
         keys["w"] ||
         keys["arrowup"];
 
+
     const brake =
         keys["s"] ||
         keys["arrowdown"];
+
 
     const left =
         keys["a"] ||
         keys["arrowleft"];
 
+
     const right =
         keys["d"] ||
         keys["arrowright"];
+
 
     const drift =
         keys[" "];
 
 
-    /* =====================
-       ACCELERATION
-    ===================== */
+    /* =========================
+       ACELERACIÓN
+    ========================== */
 
     if (accelerate) {
 
         player.speed +=
-            0.35 * dt * 60;
+            0.35 *
+            dt *
+            60;
 
     }
 
+
+    /* =========================
+       FRENO
+    ========================== */
 
     if (brake) {
 
         player.speed -=
-            0.45 * dt * 60;
+            0.45 *
+            dt *
+            60;
 
     }
 
 
-    /* =====================
-       FRICTION
-    ===================== */
+    /* =========================
+       FRICCIÓN
+    ========================== */
 
-    if (!accelerate && !brake) {
+    if (
+        !accelerate &&
+        !brake
+    ) {
 
         player.speed *=
-            Math.pow(0.985, dt * 60);
+            Math.pow(
+                0.985,
+                dt * 60
+            );
 
     }
 
 
-    /* =====================
+    /* =========================
        DRIFT
-    ===================== */
+    ========================== */
 
     if (drift) {
 
         player.speed *=
-            Math.pow(0.993, dt * 60);
+            Math.pow(
+                0.993,
+                dt * 60
+            );
 
     }
 
 
-    /* =====================
-       LIMIT
-    ===================== */
+    /* =========================
+       VELOCIDAD
+    ========================== */
 
     const maxSpeed =
-        drift ? 9 : 8;
+        drift
+            ? 9
+            : 8;
 
 
     player.speed =
@@ -1125,12 +1718,14 @@ function updatePlayer(dt) {
         );
 
 
-    /* =====================
-       STEERING
-    ===================== */
+    /* =========================
+       GIRO
+    ========================== */
 
     if (
-        Math.abs(player.speed) > 0.1
+        Math.abs(
+            player.speed
+        ) > 0.1
     ) {
 
         const direction =
@@ -1163,41 +1758,69 @@ function updatePlayer(dt) {
     }
 
 
-    /* =====================
-       MOVEMENT
-    ===================== */
+    /* =========================
+       MOVIMIENTO
+    ========================== */
 
     player.x +=
-        Math.cos(player.angle) *
+        Math.cos(
+            player.angle
+        ) *
         player.speed *
         dt *
         60;
+
 
     player.y +=
-        Math.sin(player.angle) *
+        Math.sin(
+            player.angle
+        ) *
         player.speed *
         dt *
         60;
 
 
-    /* =====================
-       SCREEN WRAP
-    ===================== */
+    /* =========================
+       BORDES
+    ========================== */
 
-    if (player.x < 0) {
-        player.x = width;
+    if (
+        player.x < 0
+    ) {
+
+        player.x =
+            width;
+
     }
 
-    if (player.x > width) {
-        player.x = 0;
+
+    if (
+        player.x > width
+    ) {
+
+        player.x =
+            0;
+
     }
 
-    if (player.y < 0) {
-        player.y = height;
+
+    if (
+        player.y < 0
+    ) {
+
+        player.y =
+            height;
+
     }
 
-    if (player.y > height) {
-        player.y = 0;
+
+    if (
+        player.y > height
+    ) {
+
+        player.y =
+            0;
+
     }
 
 
@@ -1207,7 +1830,7 @@ function updatePlayer(dt) {
 
 
 /* =========================================================
-   CHECKPOINTS
+   TRACK POSITION
 ========================================================= */
 
 function getTrackPosition(index) {
@@ -1218,16 +1841,25 @@ function getTrackPosition(index) {
             track.length
         ];
 
+
     return {
 
-        x: p.x * width,
+        x:
+            p.x *
+            width,
 
-        y: p.y * height
+        y:
+            p.y *
+            height
 
     };
 
 }
 
+
+/* =========================================================
+   DISTANCE
+========================================================= */
 
 function distance(a, b) {
 
@@ -1239,10 +1871,17 @@ function distance(a, b) {
 }
 
 
+/* =========================================================
+   CHECKPOINT
+========================================================= */
+
 function checkProgress() {
 
     const nextIndex =
-        (player.checkpoint + 1) %
+        (
+            player.checkpoint +
+            1
+        ) %
         track.length;
 
 
@@ -1254,17 +1893,14 @@ function checkProgress() {
 
     const current = {
 
-        x: player.x,
+        x:
+            player.x,
 
-        y: player.y
+        y:
+            player.y
 
     };
 
-
-    /*
-       Si estamos cerca del
-       siguiente checkpoint.
-    */
 
     if (
         distance(
@@ -1277,12 +1913,6 @@ function checkProgress() {
             nextIndex;
 
 
-        /*
-           Completamos vuelta cuando
-           pasamos por el último checkpoint
-           y regresamos al primero.
-        */
-
         if (
             player.checkpoint === 0
         ) {
@@ -1291,7 +1921,8 @@ function checkProgress() {
 
 
             if (
-                player.lap > totalLaps
+                player.lap >
+                totalLaps
             ) {
 
                 finishRace();
@@ -1311,9 +1942,12 @@ function checkProgress() {
 
 function finishRace() {
 
-    player.finished = true;
+    player.finished =
+        true;
 
-    player.speed = 0;
+
+    player.speed =
+        0;
 
 
     const elapsed =
@@ -1323,7 +1957,9 @@ function finishRace() {
 
     finishTime.textContent =
         "Tiempo: " +
-        formatTime(elapsed);
+        formatTime(
+            elapsed
+        );
 
 
     finishPosition.textContent =
@@ -1348,20 +1984,24 @@ function finishRace() {
 
 function calculatePosition() {
 
-    let position = 1;
+    let position =
+        1;
 
 
-    remotePlayers.forEach(p => {
+    remotePlayers.forEach(
+        p => {
 
-        if (
-            p.lap > player.lap
-        ) {
+            if (
+                p.lap >
+                player.lap
+            ) {
 
-            position++;
+                position++;
+
+            }
 
         }
-
-    });
+    );
 
 
     return position;
@@ -1375,22 +2015,31 @@ function calculatePosition() {
 
 function drawTrack() {
 
-    if (track.length < 2) {
+    if (
+        track.length <
+        2
+    ) {
+
         return;
+
     }
 
 
     ctx.lineJoin =
         "round";
 
+
     ctx.lineCap =
         "round";
 
 
-    /* GRASS */
+    /* =========================
+       GRASS
+    ========================== */
 
     ctx.fillStyle =
         "#28752c";
+
 
     ctx.fillRect(
         0,
@@ -1400,12 +2049,16 @@ function drawTrack() {
     );
 
 
-    /* ROAD */
+    /* =========================
+       CARRETERA
+    ========================== */
 
     ctx.beginPath();
 
+
     const first =
         getTrackPosition(0);
+
 
     ctx.moveTo(
         first.x,
@@ -1413,10 +2066,15 @@ function drawTrack() {
     );
 
 
-    for (let i = 1; i <= track.length; i++) {
+    for (
+        let i = 1;
+        i <= track.length;
+        i++
+    ) {
 
         const point =
             getTrackPosition(i);
+
 
         ctx.lineTo(
             point.x,
@@ -1425,14 +2083,17 @@ function drawTrack() {
 
     }
 
+
     ctx.closePath();
 
 
     ctx.strokeStyle =
         "#151515";
 
+
     ctx.lineWidth =
         TRACK_WIDTH + 35;
+
 
     ctx.stroke();
 
@@ -1440,24 +2101,31 @@ function drawTrack() {
     ctx.strokeStyle =
         "#555";
 
+
     ctx.lineWidth =
         TRACK_WIDTH;
+
 
     ctx.stroke();
 
 
-    /* ROAD CENTER */
+    /* =========================
+       LÍNEA CENTRAL
+    ========================== */
 
     ctx.setLineDash([
         20,
         20
     ]);
 
+
     ctx.strokeStyle =
         "#ddd";
 
+
     ctx.lineWidth =
         3;
+
 
     ctx.stroke();
 
@@ -1465,21 +2133,26 @@ function drawTrack() {
     ctx.setLineDash([]);
 
 
-    /* START LINE */
+    /* =========================
+       META
+    ========================== */
 
     const start =
         getTrackPosition(0);
 
+
     ctx.save();
+
 
     ctx.translate(
         start.x,
         start.y
     );
 
-    ctx.rotate(0);
 
-    const tileSize = 12;
+    const tileSize =
+        12;
+
 
     for (
         let x = -TRACK_WIDTH / 2;
@@ -1495,17 +2168,26 @@ function drawTrack() {
 
             const odd =
                 Math.floor(
-                    (x + TRACK_WIDTH / 2) /
+                    (
+                        x +
+                        TRACK_WIDTH / 2
+                    ) /
                     tileSize
-                ) %
-                2;
+                ) % 2;
+
 
             ctx.fillStyle =
                 (
-                    (Math.floor(
-                        (y + 20) /
-                        tileSize
-                    ) + odd) %
+                    (
+                        Math.floor(
+                            (
+                                y +
+                                20
+                            ) /
+                            tileSize
+                        ) +
+                        odd
+                    ) %
                     2 === 0
                 )
                     ? "#fff"
@@ -1523,6 +2205,7 @@ function drawTrack() {
 
     }
 
+
     ctx.restore();
 
 }
@@ -1539,20 +2222,23 @@ function drawCar(
 
     ctx.save();
 
+
     ctx.translate(
         p.x,
         p.y
     );
+
 
     ctx.rotate(
         p.angle
     );
 
 
-    /* shadow */
+    /* SOMBRA */
 
     ctx.fillStyle =
         "rgba(0,0,0,0.35)";
+
 
     ctx.fillRect(
         -17,
@@ -1562,12 +2248,13 @@ function drawCar(
     );
 
 
-    /* body */
+    /* CUERPO */
 
     ctx.fillStyle =
         local
             ? "#e53935"
             : "#3498db";
+
 
     ctx.fillRect(
         -18,
@@ -1577,12 +2264,13 @@ function drawCar(
     );
 
 
-    /* hood */
+    /* CAPÓ */
 
     ctx.fillStyle =
         local
             ? "#ff5555"
             : "#5dade2";
+
 
     ctx.fillRect(
         3,
@@ -1592,10 +2280,11 @@ function drawCar(
     );
 
 
-    /* windows */
+    /* VENTANA */
 
     ctx.fillStyle =
         "#111";
+
 
     ctx.fillRect(
         -5,
@@ -1605,10 +2294,11 @@ function drawCar(
     );
 
 
-    /* wheels */
+    /* RUEDAS */
 
     ctx.fillStyle =
         "#080808";
+
 
     ctx.fillRect(
         -11,
@@ -1617,12 +2307,14 @@ function drawCar(
         5
     );
 
+
     ctx.fillRect(
         -11,
         7,
         7,
         5
     );
+
 
     ctx.fillRect(
         9,
@@ -1630,6 +2322,7 @@ function drawCar(
         7,
         5
     );
+
 
     ctx.fillRect(
         9,
@@ -1642,24 +2335,30 @@ function drawCar(
     ctx.restore();
 
 
-    /* name */
+    /* NOMBRE */
 
     ctx.save();
+
 
     ctx.font =
         "12px Arial";
 
+
     ctx.textAlign =
         "center";
+
 
     ctx.fillStyle =
         "white";
 
+
     ctx.shadowColor =
         "black";
 
+
     ctx.shadowBlur =
         4;
+
 
     ctx.fillText(
         p.name,
@@ -1667,13 +2366,14 @@ function drawCar(
         p.y - 20
     );
 
+
     ctx.restore();
 
 }
 
 
 /* =========================================================
-   DRAW MINIMAP
+   MINIMAPA
 ========================================================= */
 
 function drawMinimap() {
@@ -1688,6 +2388,7 @@ function drawMinimap() {
 
     mapCtx.fillStyle =
         "#28752c";
+
 
     mapCtx.fillRect(
         0,
@@ -1707,12 +2408,15 @@ function drawMinimap() {
                 point.x *
                 mapCanvas.width;
 
+
             const y =
                 point.y *
                 mapCanvas.height;
 
 
-            if (index === 0) {
+            if (
+                index === 0
+            ) {
 
                 mapCtx.moveTo(
                     x,
@@ -1740,8 +2444,10 @@ function drawMinimap() {
     mapCtx.strokeStyle =
         "#555";
 
+
     mapCtx.lineWidth =
         25;
+
 
     mapCtx.stroke();
 
@@ -1749,50 +2455,76 @@ function drawMinimap() {
     mapCtx.strokeStyle =
         "#777";
 
+
     mapCtx.lineWidth =
         18;
+
 
     mapCtx.stroke();
 
 
-    /* local */
+    /* JUGADOR */
 
     mapCtx.fillStyle =
         "#e53935";
 
+
     mapCtx.beginPath();
 
+
     mapCtx.arc(
-        player.x / width * mapCanvas.width,
-        player.y / height * mapCanvas.height,
+        player.x /
+            width *
+            mapCanvas.width,
+
+        player.y /
+            height *
+            mapCanvas.height,
+
         4,
+
         0,
+
         Math.PI * 2
     );
+
 
     mapCtx.fill();
 
 
-    /* remote */
+    /* OTROS */
 
-    remotePlayers.forEach(p => {
+    remotePlayers.forEach(
+        p => {
 
-        mapCtx.fillStyle =
-            "#3498db";
+            mapCtx.fillStyle =
+                "#3498db";
 
-        mapCtx.beginPath();
 
-        mapCtx.arc(
-            p.x / width * mapCanvas.width,
-            p.y / height * mapCanvas.height,
-            4,
-            0,
-            Math.PI * 2
-        );
+            mapCtx.beginPath();
 
-        mapCtx.fill();
 
-    });
+            mapCtx.arc(
+                p.x /
+                    width *
+                    mapCanvas.width,
+
+                p.y /
+                    height *
+                    mapCanvas.height,
+
+                4,
+
+                0,
+
+                Math.PI * 2
+            );
+
+
+            mapCtx.fill();
+
+        }
+    );
 
 }
 
@@ -1803,41 +2535,54 @@ function drawMinimap() {
 
 function updatePlayerList() {
 
-    playersContainer.innerHTML = "";
+    playersContainer.innerHTML =
+        "";
 
 
     const localEntry =
-        document.createElement("div");
+        document.createElement(
+            "div"
+        );
+
 
     localEntry.className =
         "player-entry";
 
+
     localEntry.innerHTML =
         `<span>${escapeHTML(player.name)}</span>
          <span>🏎️</span>`;
+
 
     playersContainer.appendChild(
         localEntry
     );
 
 
-    remotePlayers.forEach(p => {
+    remotePlayers.forEach(
+        p => {
 
-        const entry =
-            document.createElement("div");
+            const entry =
+                document.createElement(
+                    "div"
+                );
 
-        entry.className =
-            "player-entry";
 
-        entry.innerHTML =
-            `<span>${escapeHTML(p.name)}</span>
-             <span>🏎️</span>`;
+            entry.className =
+                "player-entry";
 
-        playersContainer.appendChild(
-            entry
-        );
 
-    });
+            entry.innerHTML =
+                `<span>${escapeHTML(p.name)}</span>
+                 <span>🏎️</span>`;
+
+
+            playersContainer.appendChild(
+                entry
+            );
+
+        }
+    );
 
 }
 
@@ -1845,11 +2590,31 @@ function updatePlayerList() {
 function escapeHTML(text) {
 
     return String(text)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
+
+        .replace(
+            /&/g,
+            "&amp;"
+        )
+
+        .replace(
+            /</g,
+            "&lt;"
+        )
+
+        .replace(
+            />/g,
+            "&gt;"
+        )
+
+        .replace(
+            /"/g,
+            "&quot;"
+        )
+
+        .replace(
+            /'/g,
+            "&#039;"
+        );
 
 }
 
@@ -1863,21 +2628,32 @@ function gameLoop(now) {
     const dt =
         Math.min(
             0.05,
-            (now - lastFrame) /
+            (
+                now -
+                lastFrame
+            ) /
             1000
         );
+
 
     lastFrame =
         now;
 
 
-    if (gameRunning) {
+    if (
+        gameRunning
+    ) {
 
-        updatePlayer(dt);
+        updatePlayer(
+            dt
+        );
+
 
         sendState();
 
+
         draw();
+
 
         updateUI();
 
@@ -1909,20 +2685,25 @@ function draw() {
 
 
     /*
-       Remote players
-       primero para que nuestro
-       carro quede visible encima.
+       Otros jugadores
+       primero.
     */
 
-    remotePlayers.forEach(p => {
+    remotePlayers.forEach(
+        p => {
 
-        drawCar(
-            p,
-            false
-        );
+            drawCar(
+                p,
+                false
+            );
 
-    });
+        }
+    );
 
+
+    /*
+       Nuestro carro encima.
+    */
 
     drawCar(
         player,
@@ -1945,7 +2726,8 @@ function updateUI() {
         Math.min(
             player.lap,
             totalLaps
-        ) +
+        )
+        +
         " / " +
         totalLaps;
 
@@ -1957,12 +2739,18 @@ function updateUI() {
 
     speedElement.textContent =
         Math.round(
-            Math.abs(player.speed) * 25
-        ) +
+            Math.abs(
+                player.speed
+            ) *
+            25
+        )
+        +
         " km/h";
 
 
-    if (raceStarted) {
+    if (
+        raceStarted
+    ) {
 
         timeElement.textContent =
             formatTime(
@@ -1976,7 +2764,7 @@ function updateUI() {
 
 
 /* =========================================================
-   COPY ROOM
+   COPY CODE
 ========================================================= */
 
 copyRoomButton.addEventListener(
@@ -1989,15 +2777,20 @@ copyRoomButton.addEventListener(
                 roomCode
             );
 
+
             copyRoomButton.textContent =
                 "COPIADO";
 
-            setTimeout(() => {
 
-                copyRoomButton.textContent =
-                    "COPIAR CÓDIGO";
+            setTimeout(
+                () => {
 
-            }, 1500);
+                    copyRoomButton.textContent =
+                        "COPIAR CÓDIGO";
+
+                },
+                1500
+            );
 
         }
 
@@ -2026,9 +2819,17 @@ restartButton.addEventListener(
             "hidden"
         );
 
+
         resetPlayer();
 
-        raceStarted = false;
+
+        raceStarted =
+            false;
+
+
+        raceStarting =
+            true;
+
 
         startCountdown();
 
@@ -2037,10 +2838,11 @@ restartButton.addEventListener(
 
 
 /* =========================================================
-   INIT
+   INITIALIZE
 ========================================================= */
 
 updatePlayerList();
+
 
 requestAnimationFrame(
     gameLoop
