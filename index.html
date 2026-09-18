@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Laky Racing</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <div id="menu">
+        <div class="menu-box">
+            <h1>🏎️ LAKY RACING</h1>
+            <p>Corre. Derrapa. Gana.</p>
+
+            <button id="startButton">JUGAR</button>
+
+            <div class="controls">
+                <span>W / ↑</span> Acelerar
+                <span>S / ↓</span> Frenar / reversa
+                <span>A / ←</span> Girar izquierda
+                <span>D / →</span> Girar derecha
+                <span>ESPACIO</span> Derrape
+            </div>
+        </div>
+    </div>
+
+    <div id="gameUI" class="hidden">
+
+        <div class="topbar">
+            <div>
+                <small>VUELTA</small>
+                <strong id="lap">1 / 3</strong>
+            </div>
+
+            <div>
+                <small>POSICIÓN</small>
+                <strong id="position">1.º</strong>
+            </div>
+
+            <div>
+                <small>TIEMPO</small>
+                <strong id="time">00:00.000</strong>
+            </div>
+
+            <div>
+                <small>VELOCIDAD</small>
+                <strong id="speed">0 km/h</strong>
+            </div>
+        </div>
+
+        <canvas id="gameCanvas"></canvas>
+
+        <div id="countdown"></div>
+
+        <div id="minimap">
+            <canvas id="mapCanvas"></canvas>
+        </div>
+
+        <div id="finish" class="hidden">
+            <div class="finish-box">
+                <h1>🏁 ¡META!</h1>
+                <p id="finishTime">Tiempo: 00:00.000</p>
+                <p id="finishPosition">Posición: 1.º</p>
+                <button id="restartButton">VOLVER A JUGAR</button>
+            </div>
+        </div>
+
+    </div>
+
+    <script src="game.js"></script>
+</body>
+</html>
